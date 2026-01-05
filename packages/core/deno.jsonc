@@ -4,6 +4,9 @@
   "exports": {
     ".": "./mod.ts",
   },
+  "imports": {
+    "@bastianplsfix/cookie": "../cookie/mod.ts",
+  },
   "tasks": {
     "test": "deno test --allow-net",
   },
