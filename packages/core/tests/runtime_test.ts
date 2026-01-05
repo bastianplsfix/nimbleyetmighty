@@ -1,3 +1,5 @@
+// runtime_test.ts
+
 import { assertEquals } from "@std/assert";
 import { route, setupNimble } from "../mod.ts";
 
@@ -55,8 +57,8 @@ Deno.test("setupNimble.fetch returns 404 for unmatched method", async () => {
 
 Deno.test("setupNimble.fetch handler receives request", async () => {
   const app = setupNimble([
-    route.post("/echo", async (req) => {
-      const body = await req.text();
+    route.post("/echo", async ({ request }) => {
+      const body = await request.text();
       return new Response(body);
     }),
   ]);
