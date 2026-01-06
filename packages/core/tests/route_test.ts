@@ -67,7 +67,7 @@ Deno.test("route supports config object with resolve", () => {
 });
 
 Deno.test("route config supports guards", () => {
-  const guard = () => null;
+  const guard = () => ({ allow: true as const });
   const handler = route.get("/protected", {
     resolve: () => new Response("Secret"),
     guards: [guard],

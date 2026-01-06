@@ -10,10 +10,9 @@ import { group, type GuardFn, route, setupNimble } from "@bastianplsfix/nimble";
 // Authentication guard - checks for session cookie
 const authGuard: GuardFn = ({ cookies }) => {
   if (!cookies["session_id"]) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return { deny: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  // Return null/undefined to allow the request
-  return null;
+  return { allow: true };
 };
 
 // Admin guard - checks for admin role (simplified example)
@@ -21,9 +20,9 @@ const adminGuard: GuardFn = ({ cookies }) => {
   const sessionId = cookies["session_id"];
   // In a real app, you'd validate the session and check permissions
   if (sessionId !== "admin-session") {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
+    return { deny: Response.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  return null;
+  return { allow: true };
 };
 
 // Rate limiting guard example
@@ -31,9 +30,9 @@ const rateLimitGuard: GuardFn = ({ request }) => {
   // In a real app, you'd track requests per IP/user
   const userAgent = request.headers.get("user-agent");
   if (userAgent?.includes("bot")) {
-    return new Response("Too many requests", { status: 429 });
+    return { deny: new Response("Too many requests", { status: 429 }) };
   }
-  return null;
+  return { allow: true };
 };
 
 // ─────────────────────────────────────────────────────────────

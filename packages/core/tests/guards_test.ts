@@ -2,7 +2,7 @@ import { assertEquals } from "@std/assert";
 import { group, type GuardFn, route, setupNimble } from "../mod.ts";
 
 Deno.test("guard allows request when returning null", async () => {
-  const authGuard: GuardFn = () => null;
+  const authGuard: GuardFn = () => ({ allow: true });
 
   const handlers = group({
     handlers: [
@@ -19,7 +19,7 @@ Deno.test("guard allows request when returning null", async () => {
 });
 
 Deno.test("guard allows request when returning undefined", async () => {
-  const authGuard: GuardFn = () => undefined;
+  const authGuard: GuardFn = () => ({ allow: true });
 
   const handlers = group({
     handlers: [
@@ -36,8 +36,9 @@ Deno.test("guard allows request when returning undefined", async () => {
 });
 
 Deno.test("guard rejects request when returning Response", async () => {
-  const authGuard: GuardFn = () =>
-    new Response("Unauthorized", { status: 401 });
+  const authGuard: GuardFn = () => ({
+    deny: new Response("Unauthorized", { status: 401 }),
+  });
 
   const handlers = group({
     handlers: [
@@ -56,9 +57,9 @@ Deno.test("guard rejects request when returning Response", async () => {
 Deno.test("guard has access to cookies", async () => {
   const authGuard: GuardFn = ({ cookies }) => {
     if (!cookies["session"]) {
-      return new Response("Unauthorized", { status: 401 });
+      return { deny: new Response("Unauthorized", { status: 401 }) };
     }
-    return null;
+    return { allow: true };
   };
 
   const handlers = group({
@@ -89,7 +90,7 @@ Deno.test("guard has access to request params", async () => {
 
   const paramGuard: GuardFn = ({ params }) => {
     capturedUserId = params.id;
-    return null;
+    return { allow: true };
   };
 
   const handlers = group({
@@ -108,9 +109,9 @@ Deno.test("guard has access to request params", async () => {
 Deno.test("guard has access to request object", async () => {
   const methodGuard: GuardFn = ({ request }) => {
     if (request.method !== "GET") {
-      return new Response("Method not allowed", { status: 405 });
+      return { deny: new Response("Method not allowed", { status: 405 }) };
     }
-    return null;
+    return { allow: true };
   };
 
   const handlers = group({
@@ -134,17 +135,17 @@ Deno.test("multiple guards execute in order", async () => {
 
   const guard1: GuardFn = () => {
     executionOrder.push(1);
-    return null;
+    return { allow: true };
   };
 
   const guard2: GuardFn = () => {
     executionOrder.push(2);
-    return null;
+    return { allow: true };
   };
 
   const guard3: GuardFn = () => {
     executionOrder.push(3);
-    return null;
+    return { allow: true };
   };
 
   const handlers = group({
@@ -163,17 +164,17 @@ Deno.test("guards stop execution on first rejection", async () => {
 
   const guard1: GuardFn = () => {
     executionOrder.push(1);
-    return null;
+    return { allow: true };
   };
 
   const guard2: GuardFn = () => {
     executionOrder.push(2);
-    return new Response("Forbidden", { status: 403 });
+    return { deny: new Response("Forbidden", { status: 403 }) };
   };
 
   const guard3: GuardFn = () => {
     executionOrder.push(3);
-    return null;
+    return { allow: true };
   };
 
   const handlers = group({
@@ -191,7 +192,9 @@ Deno.test("guards stop execution on first rejection", async () => {
 Deno.test("handler not executed if guard rejects", async () => {
   let handlerExecuted = false;
 
-  const guard: GuardFn = () => new Response("Forbidden", { status: 403 });
+  const guard: GuardFn = () => ({
+    deny: new Response("Forbidden", { status: 403 }),
+  });
 
   const handlers = group({
     handlers: [
@@ -216,12 +219,12 @@ Deno.test("nested group guards execute outer-first", async () => {
 
   const outerGuard: GuardFn = () => {
     executionOrder.push("outer");
-    return null;
+    return { allow: true };
   };
 
   const innerGuard: GuardFn = () => {
     executionOrder.push("inner");
-    return null;
+    return { allow: true };
   };
 
   const innerHandlers = group({
@@ -248,9 +251,9 @@ Deno.test("async guards work correctly", async () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     if (!cookies["token"]) {
-      return new Response("Unauthorized", { status: 401 });
+      return { deny: new Response("Unauthorized", { status: 401 }) };
     }
-    return null;
+    return { allow: true };
   };
 
   const handlers = group({
@@ -276,9 +279,9 @@ Deno.test("async guards work correctly", async () => {
 Deno.test("guards can be applied to individual routes without group", async () => {
   const authGuard: GuardFn = ({ cookies }) => {
     if (!cookies["session"]) {
-      return new Response("Unauthorized", { status: 401 });
+      return { deny: new Response("Unauthorized", { status: 401 }) };
     }
-    return null;
+    return { allow: true };
   };
 
   const protectedRoute = {

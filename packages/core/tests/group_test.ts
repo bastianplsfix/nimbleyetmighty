@@ -89,9 +89,9 @@ Deno.test("group handles mixed single handlers and arrays", () => {
 Deno.test("group applies guards to all handlers", () => {
   const authGuard: GuardFn = ({ cookies }) => {
     if (!cookies["session"]) {
-      return new Response("Unauthorized", { status: 401 });
+      return { deny: new Response("Unauthorized", { status: 401 }) };
     }
-    return null;
+    return { allow: true };
   };
 
   const handlers = group({
@@ -110,8 +110,8 @@ Deno.test("group applies guards to all handlers", () => {
 });
 
 Deno.test("group guards are prepended to handler-level guards", () => {
-  const groupGuard: GuardFn = () => null;
-  const handlerGuard: GuardFn = () => null;
+  const groupGuard: GuardFn = () => ({ allow: true });
+  const handlerGuard: GuardFn = () => ({ allow: true });
 
   const handlerWithGuard = route.get("/test", {
     resolve: () => new Response("OK"),
@@ -129,8 +129,8 @@ Deno.test("group guards are prepended to handler-level guards", () => {
 });
 
 Deno.test("group guards apply to nested groups", () => {
-  const outerGuard: GuardFn = () => null;
-  const innerGuard: GuardFn = () => null;
+  const outerGuard: GuardFn = () => ({ allow: true });
+  const innerGuard: GuardFn = () => ({ allow: true });
 
   const innerHandlers = group({
     handlers: [

@@ -68,7 +68,8 @@ export default app;
 | `RouteParams` | `Record<string, string \| undefined>` — Path parameters extracted from URL |
 | `ResolverInfo` | Context object passed to handlers and guards |
 | `HandlerFn` | `(info: ResolverInfo) => Response \| Promise<Response>` |
-| `GuardFn` | `(info: ResolverInfo) => Response \| null \| undefined \| Promise<...>` |
+| `GuardFn` | `(info: ResolverInfo) => GuardResult \| Promise<GuardResult>` |
+| `GuardResult` | `{ allow: true } \| { deny: Response }` — Structured guard return type |
 | `RouteConfig` | Route configuration: `{ resolve, guards? }` |
 | `Handler` | Route descriptor: `{ method, path, handler, guards? }` |
 
@@ -144,10 +145,10 @@ const protectedHandlers = group({
 
 ### Guards
 
-Guards are middleware functions that run before handlers. They can:
-- Allow requests by returning `null` or `undefined`
-- Reject requests by returning a `Response`
-- Be async
+Guards are middleware functions that run before handlers. They return structured results:
+- **Allow requests:** `return { allow: true }`
+- **Deny requests:** `return { deny: Response }`
+- Support async operations
 - Access the same `ResolverInfo` as handlers
 
 **Example:**
@@ -157,17 +158,17 @@ import { type GuardFn } from "@bastianplsfix/nimble";
 
 const authGuard: GuardFn = ({ cookies }) => {
   if (!cookies["session_id"]) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return { deny: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  return null; // Allow request to proceed
+  return { allow: true };
 };
 
 const adminGuard: GuardFn = ({ cookies }) => {
   const session = cookies["session_id"];
   if (session !== "admin-session") {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
+    return { deny: Response.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  return null;
+  return { allow: true };
 };
 
 // Apply guards at route level
@@ -189,7 +190,7 @@ const adminHandlers = group({
 
 **Guard Execution:**
 - Guards execute sequentially in the order they're defined
-- First guard to return a `Response` stops execution
+- First guard to return `{ deny: Response }` stops execution
 - Group guards execute before route-level guards
 - Outer group guards execute before inner group guards
 
@@ -294,9 +295,9 @@ import { route, group, type GuardFn } from "@bastianplsfix/nimble";
 // Define guards
 const authGuard: GuardFn = ({ cookies }) => {
   if (!cookies["session_id"]) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return { deny: Response.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  return null;
+  return { allow: true };
 };
 
 // Public handlers (no guards)

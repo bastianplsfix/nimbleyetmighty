@@ -16,11 +16,15 @@ export interface ResolverInfo {
 // Function signature for route handlers
 export type HandlerFn = (info: ResolverInfo) => Response | Promise<Response>;
 
-// Guard function that can allow or reject a request
-// Returns null/undefined to allow, or a Response to reject
+// Guard result types
+export type GuardResult =
+  | { allow: true }
+  | { deny: Response };
+
+// Guard function that returns a structured result
 export type GuardFn = (
   info: ResolverInfo,
-) => Response | null | undefined | Promise<Response | null | undefined>;
+) => GuardResult | Promise<GuardResult>;
 
 // Route configuration object
 export interface RouteConfig {

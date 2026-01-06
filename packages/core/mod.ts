@@ -1,5 +1,6 @@
 export {
   type GuardFn,
+  type GuardResult,
   type Handler,
   type HandlerFn,
   route,

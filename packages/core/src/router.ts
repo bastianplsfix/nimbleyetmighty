@@ -60,10 +60,11 @@ export function createRouter(handlers: Handler[]) {
       if (matched.handler.guards && matched.handler.guards.length > 0) {
         for (const guard of matched.handler.guards) {
           const guardResult = await guard(resolverInfo);
-          if (guardResult) {
-            // Guard rejected the request, return the guard's response
-            return guardResult;
+          if ("deny" in guardResult) {
+            // Guard denied the request, return the denial response
+            return guardResult.deny;
           }
+          // Guard allowed, continue to next guard
         }
       }
 
