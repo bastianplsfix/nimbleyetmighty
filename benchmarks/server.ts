@@ -1,14 +1,15 @@
 import { route, setupNimble } from "../packages/core/mod.ts";
 
 const app = setupNimble([
-  route.get("/", () => new Response("OK")),
-  route.get(
-    "/json",
-    () =>
+  route.get("/", {
+    resolve: () => new Response("OK"),
+  }),
+  route.get("/json", {
+    resolve: () =>
       new Response(JSON.stringify({ message: "Hello, World!" }), {
         headers: { "Content-Type": "application/json" },
       }),
-  ),
+  }),
 ]);
 
 const port = parseInt(Deno.env.get("PORT") || "8000");
