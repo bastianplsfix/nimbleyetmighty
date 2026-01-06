@@ -31,7 +31,10 @@ export function createRouter(handlers: Handler[]) {
 
   const match = (method: string, url: string): RouteMatch | null => {
     for (const route of routes) {
-      if (route.handler.method !== method) continue;
+      // Match if the route method is "*" (all methods) or exactly matches the request method
+      if (route.handler.method !== "*" && route.handler.method !== method) {
+        continue;
+      }
 
       const result = route.pattern.exec(url);
       if (result) {

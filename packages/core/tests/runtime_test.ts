@@ -71,3 +71,89 @@ Deno.test("setupNimble.fetch handler receives request", async () => {
 
   assertEquals(await res.text(), "test body");
 });
+
+Deno.test("setupNimble.fetch matches HEAD route", async () => {
+  const app = setupNimble([
+    route.head("/resource", () =>
+      new Response(null, {
+        headers: { "Content-Length": "100" },
+      })),
+  ]);
+
+  const req = new Request("http://localhost/resource", { method: "HEAD" });
+  const res = await app.fetch(req);
+
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("Content-Length"), "100");
+});
+
+Deno.test("setupNimble.fetch matches PATCH route", async () => {
+  const app = setupNimble([
+    route.patch("/users/1", () => new Response("Patched")),
+  ]);
+
+  const req = new Request("http://localhost/users/1", { method: "PATCH" });
+  const res = await app.fetch(req);
+
+  assertEquals(res.status, 200);
+  assertEquals(await res.text(), "Patched");
+});
+
+Deno.test("setupNimble.fetch matches OPTIONS route", async () => {
+  const app = setupNimble([
+    route.options("/api", () =>
+      new Response(null, {
+        headers: { "Allow": "GET, POST, OPTIONS" },
+      })),
+  ]);
+
+  const req = new Request("http://localhost/api", { method: "OPTIONS" });
+  const res = await app.fetch(req);
+
+  assertEquals(res.status, 200);
+  assertEquals(res.headers.get("Allow"), "GET, POST, OPTIONS");
+});
+
+Deno.test("setupNimble.fetch matches route.all for any method", async () => {
+  const app = setupNimble([
+    route.all("/wildcard", () => new Response("Any method")),
+  ]);
+
+  const methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
+
+  for (const method of methods) {
+    const req = new Request("http://localhost/wildcard", { method });
+    const res = await app.fetch(req);
+    assertEquals(res.status, 200);
+    if (method !== "HEAD") {
+      assertEquals(await res.text(), "Any method");
+    }
+  }
+});
+
+Deno.test("setupNimble.fetch matches custom method with route.on", async () => {
+  const app = setupNimble([
+    route.on("PROPFIND", "/webdav", () => new Response("PROPFIND response")),
+  ]);
+
+  const req = new Request("http://localhost/webdav", { method: "PROPFIND" });
+  const res = await app.fetch(req);
+
+  assertEquals(res.status, 200);
+  assertEquals(await res.text(), "PROPFIND response");
+});
+
+Deno.test("setupNimble.fetch route.all doesn't interfere with specific routes", async () => {
+  const app = setupNimble([
+    route.get("/test", () => new Response("GET specific")),
+    route.all("/test", () => new Response("Any method")),
+  ]);
+
+  const getReq = new Request("http://localhost/test", { method: "GET" });
+  const getRes = await app.fetch(getReq);
+  assertEquals(await getRes.text(), "GET specific");
+
+  const postReq = new Request("http://localhost/test", { method: "POST" });
+  const postRes = await app.fetch(postReq);
+  assertEquals(await postRes.text(), "Any method");
+});

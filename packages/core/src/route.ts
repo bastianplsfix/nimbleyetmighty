@@ -28,6 +28,11 @@ export const route = {
     path,
     handler,
   }),
+  head: (path: string, handler: HandlerFn): Handler => ({
+    method: "HEAD",
+    path,
+    handler,
+  }),
   post: (path: string, handler: HandlerFn): Handler => ({
     method: "POST",
     path,
@@ -38,8 +43,30 @@ export const route = {
     path,
     handler,
   }),
+  patch: (path: string, handler: HandlerFn): Handler => ({
+    method: "PATCH",
+    path,
+    handler,
+  }),
   delete: (path: string, handler: HandlerFn): Handler => ({
     method: "DELETE",
+    path,
+    handler,
+  }),
+  options: (path: string, handler: HandlerFn): Handler => ({
+    method: "OPTIONS",
+    path,
+    handler,
+  }),
+  // Special method that matches any HTTP method
+  all: (path: string, handler: HandlerFn): Handler => ({
+    method: "*",
+    path,
+    handler,
+  }),
+  // Escape hatch for custom/non-standard HTTP methods
+  on: (method: string, path: string, handler: HandlerFn): Handler => ({
+    method,
     path,
     handler,
   }),
