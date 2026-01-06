@@ -4,13 +4,13 @@ export type RouteParams = Record<string, string | undefined>;
 // Resolver info object passed to handlers (MSW-style)
 export interface ResolverInfo {
   /** Entire request reference */
-  request: Request;
+  readonly request: Request;
   /** Unique request identifier (from headers or generated) */
-  requestId: string;
+  readonly requestId: string;
   /** Request's path parameters */
-  params: RouteParams;
+  readonly params: RouteParams;
   /** Request's cookies */
-  cookies: Record<string, string>;
+  readonly cookies: Record<string, string>;
 }
 
 // Function signature for route handlers

@@ -188,11 +188,17 @@ const adminHandlers = group({
 });
 ```
 
-**Guard Execution:**
-- Guards execute sequentially in the order they're defined
+**Guard Execution Order (Fixed):**
+Guards execute in a **fixed, predictable order**:
+1. Outer group guards (outermost first)
+2. Inner group guards
+3. Route-level guards
+
+**Guard Behavior:**
+- Guards execute sequentially in order
 - First guard to return `{ deny: Response }` stops execution
-- Group guards execute before route-level guards
-- Outer group guards execute before inner group guards
+- Remaining guards are skipped when a denial occurs
+- All `ResolverInfo` properties are **readonly** for immutability
 
 ---
 
