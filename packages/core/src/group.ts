@@ -10,29 +10,14 @@ export interface GroupOptions {
 
 // Compose multiple handlers or handler groups into a flat array
 // Guards are applied to all handlers in the group and nested groups
-export function group(options: GroupOptions): Handler[];
-export function group(handlers: HandlerGroup[]): Handler[];
-export function group(
-  handlersOrOptions: HandlerGroup[] | GroupOptions,
-): Handler[] {
-  let handlers: HandlerGroup[];
-  let guards: GuardFn[] | undefined;
-
-  // Handle both function signatures
-  if (Array.isArray(handlersOrOptions)) {
-    handlers = handlersOrOptions;
-    guards = undefined;
-  } else {
-    handlers = handlersOrOptions.handlers;
-    guards = handlersOrOptions.guards;
-  }
-
+export function group(options: GroupOptions): Handler[] {
+  const { handlers, guards } = options;
   const result: Handler[] = [];
 
   for (const item of handlers) {
     if (Array.isArray(item)) {
       // Recursively flatten nested groups
-      const nestedHandlers = group(item);
+      const nestedHandlers = group({ handlers: item });
       result.push(...nestedHandlers);
     } else {
       // Single handler

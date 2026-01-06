@@ -10,7 +10,7 @@ Deno.test("setupNimble returns object with fetch method", () => {
 
 Deno.test("setupNimble.fetch matches GET route", async () => {
   const app = setupNimble([
-    route.get("/hello", () => new Response("Hello World")),
+    route.get("/hello", { resolve: () => new Response("Hello World") }),
   ]);
 
   const req = new Request("http://localhost/hello", { method: "GET" });
@@ -22,7 +22,7 @@ Deno.test("setupNimble.fetch matches GET route", async () => {
 
 Deno.test("setupNimble.fetch matches POST route", async () => {
   const app = setupNimble([
-    route.post("/data", () => new Response("Posted")),
+    route.post("/data", { resolve: () => new Response("Posted") }),
   ]);
 
   const req = new Request("http://localhost/data", { method: "POST" });
@@ -34,7 +34,7 @@ Deno.test("setupNimble.fetch matches POST route", async () => {
 
 Deno.test("setupNimble.fetch returns 404 for unmatched path", async () => {
   const app = setupNimble([
-    route.get("/exists", () => new Response("OK")),
+    route.get("/exists", { resolve: () => new Response("OK") }),
   ]);
 
   const req = new Request("http://localhost/not-found", { method: "GET" });
@@ -46,7 +46,7 @@ Deno.test("setupNimble.fetch returns 404 for unmatched path", async () => {
 
 Deno.test("setupNimble.fetch returns 404 for unmatched method", async () => {
   const app = setupNimble([
-    route.get("/test", () => new Response("OK")),
+    route.get("/test", { resolve: () => new Response("OK") }),
   ]);
 
   const req = new Request("http://localhost/test", { method: "POST" });
@@ -57,9 +57,11 @@ Deno.test("setupNimble.fetch returns 404 for unmatched method", async () => {
 
 Deno.test("setupNimble.fetch handler receives request", async () => {
   const app = setupNimble([
-    route.post("/echo", async ({ request }) => {
-      const body = await request.text();
-      return new Response(body);
+    route.post("/echo", {
+      resolve: async ({ request }) => {
+        const body = await request.text();
+        return new Response(body);
+      },
     }),
   ]);
 
@@ -74,10 +76,12 @@ Deno.test("setupNimble.fetch handler receives request", async () => {
 
 Deno.test("setupNimble.fetch matches HEAD route", async () => {
   const app = setupNimble([
-    route.head("/resource", () =>
-      new Response(null, {
-        headers: { "Content-Length": "100" },
-      })),
+    route.head("/resource", {
+      resolve: () =>
+        new Response(null, {
+          headers: { "Content-Length": "100" },
+        }),
+    }),
   ]);
 
   const req = new Request("http://localhost/resource", { method: "HEAD" });
@@ -89,7 +93,7 @@ Deno.test("setupNimble.fetch matches HEAD route", async () => {
 
 Deno.test("setupNimble.fetch matches PATCH route", async () => {
   const app = setupNimble([
-    route.patch("/users/1", () => new Response("Patched")),
+    route.patch("/users/1", { resolve: () => new Response("Patched") }),
   ]);
 
   const req = new Request("http://localhost/users/1", { method: "PATCH" });
@@ -101,10 +105,12 @@ Deno.test("setupNimble.fetch matches PATCH route", async () => {
 
 Deno.test("setupNimble.fetch matches OPTIONS route", async () => {
   const app = setupNimble([
-    route.options("/api", () =>
-      new Response(null, {
-        headers: { "Allow": "GET, POST, OPTIONS" },
-      })),
+    route.options("/api", {
+      resolve: () =>
+        new Response(null, {
+          headers: { "Allow": "GET, POST, OPTIONS" },
+        }),
+    }),
   ]);
 
   const req = new Request("http://localhost/api", { method: "OPTIONS" });
@@ -116,7 +122,7 @@ Deno.test("setupNimble.fetch matches OPTIONS route", async () => {
 
 Deno.test("setupNimble.fetch matches route.all for any method", async () => {
   const app = setupNimble([
-    route.all("/wildcard", () => new Response("Any method")),
+    route.all("/wildcard", { resolve: () => new Response("Any method") }),
   ]);
 
   const methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
@@ -133,7 +139,9 @@ Deno.test("setupNimble.fetch matches route.all for any method", async () => {
 
 Deno.test("setupNimble.fetch matches custom method with route.on", async () => {
   const app = setupNimble([
-    route.on("PROPFIND", "/webdav", () => new Response("PROPFIND response")),
+    route.on("PROPFIND", "/webdav", {
+      resolve: () => new Response("PROPFIND response"),
+    }),
   ]);
 
   const req = new Request("http://localhost/webdav", { method: "PROPFIND" });
@@ -145,8 +153,8 @@ Deno.test("setupNimble.fetch matches custom method with route.on", async () => {
 
 Deno.test("setupNimble.fetch route.all doesn't interfere with specific routes", async () => {
   const app = setupNimble([
-    route.get("/test", () => new Response("GET specific")),
-    route.all("/test", () => new Response("Any method")),
+    route.get("/test", { resolve: () => new Response("GET specific") }),
+    route.all("/test", { resolve: () => new Response("Any method") }),
   ]);
 
   const getReq = new Request("http://localhost/test", { method: "GET" });

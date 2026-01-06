@@ -22,6 +22,12 @@ export type GuardFn = (
   info: ResolverInfo,
 ) => Response | null | undefined | Promise<Response | null | undefined>;
 
+// Route configuration object
+export interface RouteConfig {
+  resolve: HandlerFn;
+  guards?: GuardFn[];
+}
+
 // Descriptor linking HTTP method + path + handler function
 export type Handler = {
   method: string;
@@ -32,49 +38,58 @@ export type Handler = {
 
 // Factory methods to create Handler descriptors for each HTTP verb
 export const route = {
-  get: (path: string, handler: HandlerFn): Handler => ({
+  get: (path: string, config: RouteConfig): Handler => ({
     method: "GET",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  head: (path: string, handler: HandlerFn): Handler => ({
+  head: (path: string, config: RouteConfig): Handler => ({
     method: "HEAD",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  post: (path: string, handler: HandlerFn): Handler => ({
+  post: (path: string, config: RouteConfig): Handler => ({
     method: "POST",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  put: (path: string, handler: HandlerFn): Handler => ({
+  put: (path: string, config: RouteConfig): Handler => ({
     method: "PUT",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  patch: (path: string, handler: HandlerFn): Handler => ({
+  patch: (path: string, config: RouteConfig): Handler => ({
     method: "PATCH",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  delete: (path: string, handler: HandlerFn): Handler => ({
+  delete: (path: string, config: RouteConfig): Handler => ({
     method: "DELETE",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  options: (path: string, handler: HandlerFn): Handler => ({
+  options: (path: string, config: RouteConfig): Handler => ({
     method: "OPTIONS",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  all: (path: string, handler: HandlerFn): Handler => ({
+  all: (path: string, config: RouteConfig): Handler => ({
     method: "*",
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
-  on: (method: string, path: string, handler: HandlerFn): Handler => ({
+  on: (method: string, path: string, config: RouteConfig): Handler => ({
     method,
     path,
-    handler,
+    handler: config.resolve,
+    guards: config.guards,
   }),
 };

@@ -3,6 +3,7 @@ export {
   type Handler,
   type HandlerFn,
   route,
+  type RouteConfig,
 } from "./src/route.ts";
 export { group, type GroupOptions, type HandlerGroup } from "./src/group.ts";
 export { setupNimble } from "./src/runtime.ts";

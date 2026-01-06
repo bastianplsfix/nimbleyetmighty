@@ -5,7 +5,9 @@ Deno.test("guard allows request when returning null", async () => {
   const authGuard: GuardFn = () => null;
 
   const handlers = group({
-    handlers: [route.get("/protected", () => new Response("Secret"))],
+    handlers: [
+      route.get("/protected", { resolve: () => new Response("Secret") }),
+    ],
     guards: [authGuard],
   });
 
@@ -20,7 +22,9 @@ Deno.test("guard allows request when returning undefined", async () => {
   const authGuard: GuardFn = () => undefined;
 
   const handlers = group({
-    handlers: [route.get("/protected", () => new Response("Secret"))],
+    handlers: [
+      route.get("/protected", { resolve: () => new Response("Secret") }),
+    ],
     guards: [authGuard],
   });
 
@@ -36,7 +40,9 @@ Deno.test("guard rejects request when returning Response", async () => {
     new Response("Unauthorized", { status: 401 });
 
   const handlers = group({
-    handlers: [route.get("/protected", () => new Response("Secret"))],
+    handlers: [
+      route.get("/protected", { resolve: () => new Response("Secret") }),
+    ],
     guards: [authGuard],
   });
 
@@ -56,7 +62,9 @@ Deno.test("guard has access to cookies", async () => {
   };
 
   const handlers = group({
-    handlers: [route.get("/protected", () => new Response("Secret"))],
+    handlers: [
+      route.get("/protected", { resolve: () => new Response("Secret") }),
+    ],
     guards: [authGuard],
   });
 
@@ -85,7 +93,9 @@ Deno.test("guard has access to request params", async () => {
   };
 
   const handlers = group({
-    handlers: [route.get("/users/:id", () => new Response("User"))],
+    handlers: [
+      route.get("/users/:id", { resolve: () => new Response("User") }),
+    ],
     guards: [paramGuard],
   });
 
@@ -104,7 +114,7 @@ Deno.test("guard has access to request object", async () => {
   };
 
   const handlers = group({
-    handlers: [route.all("/test", () => new Response("OK"))],
+    handlers: [route.all("/test", { resolve: () => new Response("OK") })],
     guards: [methodGuard],
   });
 
@@ -138,7 +148,7 @@ Deno.test("multiple guards execute in order", async () => {
   };
 
   const handlers = group({
-    handlers: [route.get("/test", () => new Response("OK"))],
+    handlers: [route.get("/test", { resolve: () => new Response("OK") })],
     guards: [guard1, guard2, guard3],
   });
 
@@ -167,7 +177,7 @@ Deno.test("guards stop execution on first rejection", async () => {
   };
 
   const handlers = group({
-    handlers: [route.get("/test", () => new Response("OK"))],
+    handlers: [route.get("/test", { resolve: () => new Response("OK") })],
     guards: [guard1, guard2, guard3],
   });
 
@@ -185,9 +195,11 @@ Deno.test("handler not executed if guard rejects", async () => {
 
   const handlers = group({
     handlers: [
-      route.get("/test", () => {
-        handlerExecuted = true;
-        return new Response("OK");
+      route.get("/test", {
+        resolve: () => {
+          handlerExecuted = true;
+          return new Response("OK");
+        },
       }),
     ],
     guards: [guard],
@@ -213,7 +225,9 @@ Deno.test("nested group guards execute outer-first", async () => {
   };
 
   const innerHandlers = group({
-    handlers: [route.get("/api/users", () => new Response("Users"))],
+    handlers: [
+      route.get("/api/users", { resolve: () => new Response("Users") }),
+    ],
     guards: [innerGuard],
   });
 
@@ -240,7 +254,9 @@ Deno.test("async guards work correctly", async () => {
   };
 
   const handlers = group({
-    handlers: [route.get("/protected", () => new Response("Secret"))],
+    handlers: [
+      route.get("/protected", { resolve: () => new Response("Secret") }),
+    ],
     guards: [asyncGuard],
   });
 
@@ -266,12 +282,12 @@ Deno.test("guards can be applied to individual routes without group", async () =
   };
 
   const protectedRoute = {
-    ...route.get("/protected", () => new Response("Secret")),
+    ...route.get("/protected", { resolve: () => new Response("Secret") }),
     guards: [authGuard],
   };
 
   const app = setupNimble([
-    route.get("/public", () => new Response("Public")),
+    route.get("/public", { resolve: () => new Response("Public") }),
     protectedRoute,
   ]);
 

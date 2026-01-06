@@ -12,7 +12,7 @@ Deno.test("createRouter.match returns null for no routes", () => {
 
 Deno.test("createRouter.match extracts path params", () => {
   const router = createRouter([
-    route.get("/users/:id", () => new Response("OK")),
+    route.get("/users/:id", { resolve: () => new Response("OK") }),
   ]);
   const result = router.match("GET", "http://localhost/users/123");
   assertEquals(result?.params.id, "123");
@@ -20,7 +20,9 @@ Deno.test("createRouter.match extracts path params", () => {
 
 Deno.test("handler receives parsed cookies", async () => {
   const router = createRouter([
-    route.get("/auth", ({ cookies }) => new Response(cookies.token ?? "none")),
+    route.get("/auth", {
+      resolve: ({ cookies }) => new Response(cookies.token ?? "none"),
+    }),
   ]);
   const req = new Request("http://localhost/auth", {
     headers: { cookie: "token=abc123; other=value" },
@@ -31,7 +33,9 @@ Deno.test("handler receives parsed cookies", async () => {
 
 Deno.test("handler receives requestId from traceparent", async () => {
   const router = createRouter([
-    route.get("/trace", ({ requestId }) => new Response(requestId)),
+    route.get("/trace", {
+      resolve: ({ requestId }) => new Response(requestId),
+    }),
   ]);
   const req = new Request("http://localhost/trace", {
     headers: {
@@ -44,7 +48,9 @@ Deno.test("handler receives requestId from traceparent", async () => {
 
 Deno.test("handler receives requestId from x-request-id", async () => {
   const router = createRouter([
-    route.get("/request-id", ({ requestId }) => new Response(requestId)),
+    route.get("/request-id", {
+      resolve: ({ requestId }) => new Response(requestId),
+    }),
   ]);
   const req = new Request("http://localhost/request-id", {
     headers: { "x-request-id": "custom-id-123" },
@@ -55,7 +61,9 @@ Deno.test("handler receives requestId from x-request-id", async () => {
 
 Deno.test("handler receives requestId from x-correlation-id", async () => {
   const router = createRouter([
-    route.get("/correlation", ({ requestId }) => new Response(requestId)),
+    route.get("/correlation", {
+      resolve: ({ requestId }) => new Response(requestId),
+    }),
   ]);
   const req = new Request("http://localhost/correlation", {
     headers: { "x-correlation-id": "corr-456" },
@@ -66,7 +74,9 @@ Deno.test("handler receives requestId from x-correlation-id", async () => {
 
 Deno.test("handler receives generated requestId when no headers", async () => {
   const router = createRouter([
-    route.get("/generated", ({ requestId }) => new Response(requestId)),
+    route.get("/generated", {
+      resolve: ({ requestId }) => new Response(requestId),
+    }),
   ]);
   const req = new Request("http://localhost/generated");
   const res = await router.handle(req);
@@ -76,9 +86,11 @@ Deno.test("handler receives generated requestId when no headers", async () => {
 
 Deno.test("handler can access URL via request", async () => {
   const router = createRouter([
-    route.get("/search", ({ request }) => {
-      const url = new URL(request.url);
-      return new Response(url.searchParams.get("q") ?? "");
+    route.get("/search", {
+      resolve: ({ request }) => {
+        const url = new URL(request.url);
+        return new Response(url.searchParams.get("q") ?? "");
+      },
     }),
   ]);
   const req = new Request("http://localhost/search?q=hello");
@@ -88,7 +100,9 @@ Deno.test("handler can access URL via request", async () => {
 
 Deno.test("createRouter.match extracts multiple path params", () => {
   const router = createRouter([
-    route.get("/users/:userId/posts/:postId", () => new Response("OK")),
+    route.get("/users/:userId/posts/:postId", {
+      resolve: () => new Response("OK"),
+    }),
   ]);
   const result = router.match("GET", "http://localhost/users/42/posts/7");
   assertEquals(result?.params.userId, "42");
@@ -97,14 +111,14 @@ Deno.test("createRouter.match extracts multiple path params", () => {
 
 Deno.test("createRouter.match returns null for wrong method", () => {
   const router = createRouter([
-    route.get("/test", () => new Response("OK")),
+    route.get("/test", { resolve: () => new Response("OK") }),
   ]);
   assertEquals(router.match("POST", "http://localhost/test"), null);
 });
 
 Deno.test("createRouter.match matches wildcard method", () => {
   const router = createRouter([
-    route.all("/any", () => new Response("OK")),
+    route.all("/any", { resolve: () => new Response("OK") }),
   ]);
   assertEquals(
     router.match("GET", "http://localhost/any")?.handler.method,
