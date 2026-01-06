@@ -1,18 +1,20 @@
-// route.ts
-
 // Path parameters extracted from URL (e.g., { id: "123" })
 export type RouteParams = Record<string, string | undefined>;
 
-// Context object passed to handlers (MSW-style)
-export interface HandlerContext {
+// Resolver info object passed to handlers (MSW-style)
+export interface ResolverInfo {
+  /** Entire request reference */
   request: Request;
+  /** Unique request identifier (from headers or generated) */
+  requestId: string;
+  /** Request's path parameters */
   params: RouteParams;
-  url: URL;
+  /** Request's cookies */
   cookies: Record<string, string>;
 }
 
 // Function signature for route handlers
-export type HandlerFn = (ctx: HandlerContext) => Response | Promise<Response>;
+export type HandlerFn = (info: ResolverInfo) => Response | Promise<Response>;
 
 // Descriptor linking HTTP method + path + handler function
 export type Handler = {
@@ -58,13 +60,11 @@ export const route = {
     path,
     handler,
   }),
-  // Special method that matches any HTTP method
   all: (path: string, handler: HandlerFn): Handler => ({
     method: "*",
     path,
     handler,
   }),
-  // Escape hatch for custom/non-standard HTTP methods
   on: (method: string, path: string, handler: HandlerFn): Handler => ({
     method,
     path,

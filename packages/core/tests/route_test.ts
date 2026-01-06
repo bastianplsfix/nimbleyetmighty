@@ -1,5 +1,3 @@
-// route_test.ts
-
 import { assertEquals } from "@std/assert";
 import { route } from "../mod.ts";
 

@@ -1,6 +1,6 @@
-// router.ts
-
 import type { Handler, RouteParams } from "./route.ts";
+import { parseCookies } from "./internal/cookies.ts";
+import { resolveRequestId } from "./internal/request_id.ts";
 
 interface CompiledRoute {
   handler: Handler;
@@ -10,17 +10,6 @@ interface CompiledRoute {
 export interface RouteMatch {
   handler: Handler;
   params: RouteParams;
-}
-
-// Parse cookies from the Cookie header into an object
-function parseCookies(cookieHeader: string | null): Record<string, string> {
-  if (!cookieHeader) return {};
-  return Object.fromEntries(
-    cookieHeader.split(";").map((c) => {
-      const [key, ...val] = c.trim().split("=");
-      return [key, val.join("=")];
-    }),
-  );
 }
 
 export function createRouter(handlers: Handler[]) {
@@ -57,14 +46,13 @@ export function createRouter(handlers: Handler[]) {
         return new Response("Not Found", { status: 404 });
       }
 
-      // Build the context object for the handler
-      const url = new URL(req.url);
+      const requestId = resolveRequestId(req.headers);
       const cookies = parseCookies(req.headers.get("cookie"));
 
       return matched.handler.handler({
         request: req,
+        requestId,
         params: matched.params,
-        url,
         cookies,
       });
     },
