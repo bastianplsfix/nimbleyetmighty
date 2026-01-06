@@ -1,5 +1,10 @@
-export { type Handler, type HandlerFn, route } from "./src/route.ts";
-export { group, type HandlerGroup } from "./src/group.ts";
+export {
+  type GuardFn,
+  type Handler,
+  type HandlerFn,
+  route,
+} from "./src/route.ts";
+export { group, type GroupOptions, type HandlerGroup } from "./src/group.ts";
 export { setupNimble } from "./src/runtime.ts";
 
 // Re-export cookie functionality

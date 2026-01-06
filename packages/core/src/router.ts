@@ -40,7 +40,7 @@ export function createRouter(handlers: Handler[]) {
 
   return {
     match,
-    handle: (req: Request): Response | Promise<Response> => {
+    handle: async (req: Request): Promise<Response> => {
       const matched = match(req.method, req.url);
       if (!matched) {
         return new Response("Not Found", { status: 404 });
@@ -49,12 +49,26 @@ export function createRouter(handlers: Handler[]) {
       const requestId = resolveRequestId(req.headers);
       const cookies = parseCookies(req.headers.get("cookie"));
 
-      return matched.handler.handler({
+      const resolverInfo = {
         request: req,
         requestId,
         params: matched.params,
         cookies,
-      });
+      };
+
+      // Execute guards in order
+      if (matched.handler.guards && matched.handler.guards.length > 0) {
+        for (const guard of matched.handler.guards) {
+          const guardResult = await guard(resolverInfo);
+          if (guardResult) {
+            // Guard rejected the request, return the guard's response
+            return guardResult;
+          }
+        }
+      }
+
+      // All guards passed, execute the handler
+      return matched.handler.handler(resolverInfo);
     },
   };
 }

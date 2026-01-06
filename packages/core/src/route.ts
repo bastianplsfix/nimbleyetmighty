@@ -16,11 +16,18 @@ export interface ResolverInfo {
 // Function signature for route handlers
 export type HandlerFn = (info: ResolverInfo) => Response | Promise<Response>;
 
+// Guard function that can allow or reject a request
+// Returns null/undefined to allow, or a Response to reject
+export type GuardFn = (
+  info: ResolverInfo,
+) => Response | null | undefined | Promise<Response | null | undefined>;
+
 // Descriptor linking HTTP method + path + handler function
 export type Handler = {
   method: string;
   path: string;
   handler: HandlerFn;
+  guards?: GuardFn[];
 };
 
 // Factory methods to create Handler descriptors for each HTTP verb

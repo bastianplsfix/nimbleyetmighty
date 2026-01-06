@@ -1,4 +1,40 @@
-import { group, route, setupNimble } from "@bastianplsfix/nimble";
+import { group, type GuardFn, route, setupNimble } from "@bastianplsfix/nimble";
+
+// ─────────────────────────────────────────────────────────────
+// Guards (Middleware)
+// ─────────────────────────────────────────────────────────────
+
+// Guards are functions that can allow or reject requests
+// They run before handlers and can check authentication, authorization, etc.
+
+// Authentication guard - checks for session cookie
+const authGuard: GuardFn = ({ cookies }) => {
+  if (!cookies["session_id"]) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // Return null/undefined to allow the request
+  return null;
+};
+
+// Admin guard - checks for admin role (simplified example)
+const adminGuard: GuardFn = ({ cookies }) => {
+  const sessionId = cookies["session_id"];
+  // In a real app, you'd validate the session and check permissions
+  if (sessionId !== "admin-session") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
+};
+
+// Rate limiting guard example
+const rateLimitGuard: GuardFn = ({ request }) => {
+  // In a real app, you'd track requests per IP/user
+  const userAgent = request.headers.get("user-agent");
+  if (userAgent?.includes("bot")) {
+    return new Response("Too many requests", { status: 429 });
+  }
+  return null;
+};
 
 // ─────────────────────────────────────────────────────────────
 // Handler Groups (Composition)
@@ -21,21 +57,6 @@ const userHandlers = [
     console.log(`[${requestId}] Creating user:`, user);
     return Response.json({ id: crypto.randomUUID(), ...user }, { status: 201 });
   }),
-
-  route.put(
-    "/users/:id",
-    ({ params }) => new Response(`Updated user ${params.id}`),
-  ),
-
-  route.patch(
-    "/users/:id",
-    ({ params }) => new Response(`Patched user ${params.id}`),
-  ),
-
-  route.delete(
-    "/users/:id",
-    ({ params }) => new Response(`Deleted user ${params.id}`),
-  ),
 
   route.head(
     "/users/:id",
@@ -100,11 +121,47 @@ const authHandlers = [
   }),
 ];
 
+// Protected user handlers - require authentication
+const protectedUserHandlers = group({
+  handlers: [
+    route.put(
+      "/users/:id",
+      ({ params }) => new Response(`Updated user ${params.id}`),
+    ),
+    route.patch(
+      "/users/:id",
+      ({ params }) => new Response(`Patched user ${params.id}`),
+    ),
+    route.delete(
+      "/users/:id",
+      ({ params }) => new Response(`Deleted user ${params.id}`),
+    ),
+  ],
+  guards: [authGuard], // All these routes require authentication
+});
+
+// Admin-only handlers - require both auth and admin role
+const adminHandlers = group({
+  handlers: [
+    route.post(
+      "/admin/users/bulk-delete",
+      () => Response.json({ deleted: 10 }),
+    ),
+    route.get(
+      "/admin/stats",
+      () => Response.json({ users: 1000, products: 500 }),
+    ),
+  ],
+  guards: [authGuard, adminGuard], // Require both authentication and admin
+});
+
 // Compose multiple groups together
 const apiHandlers = group([
   userHandlers,
   productHandlers,
   authHandlers,
+  protectedUserHandlers,
+  adminHandlers,
 ]);
 
 const app = setupNimble([
