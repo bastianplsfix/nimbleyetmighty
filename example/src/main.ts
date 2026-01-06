@@ -1,50 +1,25 @@
-import { route, setupNimble } from "@bastianplsfix/nimble";
+import { group, route, setupNimble } from "@bastianplsfix/nimble";
 
-const app = setupNimble([
-  // ─────────────────────────────────────────────────────────────
-  // Basic Routes
-  // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Handler Groups (Composition)
+// ─────────────────────────────────────────────────────────────
 
-  route.get("/", () => new Response("Hello from Nimble!")),
+// Organize related handlers into groups
+const userHandlers = [
+  route.get("/users", () =>
+    Response.json([
+      { id: 1, name: "Alice" },
+      { id: 2, name: "Bob" },
+    ])),
 
-  route.get("/health", () => new Response("OK")),
-
-  // ─────────────────────────────────────────────────────────────
-  // Request Body
-  // ─────────────────────────────────────────────────────────────
-
-  route.post("/echo", async ({ request }) => {
-    const body = await request.text();
-    return new Response(body);
+  route.get("/users/:id", ({ params }) => {
+    return Response.json({ userId: params.id });
   }),
 
   route.post("/users", async ({ request, requestId }) => {
     const user = await request.json();
     console.log(`[${requestId}] Creating user:`, user);
     return Response.json({ id: crypto.randomUUID(), ...user }, { status: 201 });
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // JSON Response
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/json", () => {
-    return Response.json({ hello: "world" });
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Path Parameters
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/users/:id", ({ params }) => {
-    return Response.json({ userId: params.id });
-  }),
-
-  route.get("/users/:userId/posts/:postId", ({ params }) => {
-    return Response.json({
-      userId: params.userId,
-      postId: params.postId,
-    });
   }),
 
   route.put(
@@ -66,6 +41,115 @@ const app = setupNimble([
     "/users/:id",
     () => new Response(null, { headers: { "Content-Length": "42" } }),
   ),
+];
+
+const productHandlers = [
+  route.get("/products", () =>
+    Response.json([
+      { id: 1, name: "Widget", price: 19.99 },
+      { id: 2, name: "Gadget", price: 29.99 },
+    ])),
+
+  route.get("/products/:id", ({ params }) => {
+    return Response.json({
+      productId: params.id,
+      name: "Sample Product",
+      price: 19.99,
+    });
+  }),
+
+  route.post("/products", async ({ request }) => {
+    const product = await request.json();
+    return Response.json({ id: crypto.randomUUID(), ...product }, {
+      status: 201,
+    });
+  }),
+];
+
+const authHandlers = [
+  route.post("/login", () => {
+    const sessionId = crypto.randomUUID();
+    return new Response("Logged in", {
+      status: 200,
+      headers: {
+        "Set-Cookie": `session_id=${sessionId}; HttpOnly; Path=/; Max-Age=3600`,
+      },
+    });
+  }),
+
+  route.post("/logout", () => {
+    return new Response("Logged out", {
+      status: 200,
+      headers: {
+        "Set-Cookie": "session_id=; HttpOnly; Path=/; Max-Age=0",
+      },
+    });
+  }),
+
+  route.get("/me", ({ cookies }) => {
+    const sessionId = cookies["session_id"];
+
+    if (!sessionId) {
+      return Response.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    return Response.json({
+      user: "john_doe",
+      sessionId,
+    });
+  }),
+];
+
+// Compose multiple groups together
+const apiHandlers = group([
+  userHandlers,
+  productHandlers,
+  authHandlers,
+]);
+
+const app = setupNimble([
+  // ─────────────────────────────────────────────────────────────
+  // Basic Routes
+  // ─────────────────────────────────────────────────────────────
+
+  route.get("/", () => new Response("Hello from Nimble!")),
+
+  route.get("/health", () => new Response("OK")),
+
+  // ─────────────────────────────────────────────────────────────
+  // Composed API Handlers
+  // ─────────────────────────────────────────────────────────────
+
+  // Include all grouped handlers
+  ...apiHandlers,
+
+  // ─────────────────────────────────────────────────────────────
+  // Request Body
+  // ─────────────────────────────────────────────────────────────
+
+  route.post("/echo", async ({ request }) => {
+    const body = await request.text();
+    return new Response(body);
+  }),
+
+  // ─────────────────────────────────────────────────────────────
+  // JSON Response
+  // ─────────────────────────────────────────────────────────────
+
+  route.get("/json", () => {
+    return Response.json({ hello: "world" });
+  }),
+
+  // ─────────────────────────────────────────────────────────────
+  // Path Parameters
+  // ─────────────────────────────────────────────────────────────
+
+  route.get("/users/:userId/posts/:postId", ({ params }) => {
+    return Response.json({
+      userId: params.userId,
+      postId: params.postId,
+    });
+  }),
 
   // ─────────────────────────────────────────────────────────────
   // Query Parameters (via request.url)
@@ -86,40 +170,9 @@ const app = setupNimble([
   }),
 
   // ─────────────────────────────────────────────────────────────
-  // Cookies
+  // Cookies (handled by authHandlers group above)
   // ─────────────────────────────────────────────────────────────
-
-  route.get("/me", ({ cookies }) => {
-    const sessionId = cookies["session_id"];
-
-    if (!sessionId) {
-      return Response.json({ error: "Not authenticated" }, { status: 401 });
-    }
-
-    return Response.json({
-      user: "john_doe",
-      sessionId,
-    });
-  }),
-
-  route.post("/login", () => {
-    const sessionId = crypto.randomUUID();
-    return new Response("Logged in", {
-      status: 200,
-      headers: {
-        "Set-Cookie": `session_id=${sessionId}; HttpOnly; Path=/; Max-Age=3600`,
-      },
-    });
-  }),
-
-  route.post("/logout", () => {
-    return new Response("Logged out", {
-      status: 200,
-      headers: {
-        "Set-Cookie": "session_id=; HttpOnly; Path=/; Max-Age=0",
-      },
-    });
-  }),
+  // See /login, /logout, and /me routes in authHandlers
 
   // ─────────────────────────────────────────────────────────────
   // Request ID (tracing/logging)
