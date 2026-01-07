@@ -15,7 +15,7 @@ Request → Router (URLPattern matching) → Guards → Handler (with context) �
 **Key Features:**
 - MSW-style handler context with parsed URL, params, cookies, and request ID
 - Object-based route configuration with `resolve` handlers
-- Guard middleware for authentication, authorization, and request validation
+- Guards for authentication, authorization, and request validation
 - Handler grouping with composable guards
 - `URLPattern`-based routing with path parameters
 - Zero external dependencies
@@ -145,7 +145,7 @@ const protectedHandlers = group({
 
 ### Guards
 
-Guards are middleware functions that run before handlers. They return structured results:
+Guards are pure, ordered request gates that either allow execution or return a response. They return structured results:
 - **Allow requests:** `return { allow: true }`
 - **Deny requests:** `return { deny: Response }`
 - Support async operations
