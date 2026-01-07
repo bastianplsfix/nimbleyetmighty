@@ -497,6 +497,17 @@ route.get("/me", {
 
 Nimble provides optional lifecycle hooks for cross-cutting concerns like logging, metrics, and response transformation. Hooks are **opt-in**, **non-invasive**, and designed to complement (not replace) the explicit guard → handler flow.
 
+### Should I use a hook or a guard?
+
+Quick decision tree to help you choose the right tool:
+
+- ✅ Use **`onRequest`** if: Same for ALL routes (logging, metrics, rate limiting)
+- ✅ Use **guard** if: Route-specific logic (auth, validation, permissions)
+- ✅ Use **`onResponse`** if: Augmenting ALL responses (CORS headers, security headers)
+- ✅ Use **handler** if: Business logic specific to this route
+
+**Rule of thumb:** If it applies to every route, use a hook. If it's route-specific, keep it in the route definition (guard or handler).
+
 ### Philosophy
 
 Lifecycle hooks solve a specific problem: **cross-cutting concerns that shouldn't pollute route definitions**. They enable observability and response augmentation without disrupting your explicit, value-based request handling.
@@ -506,6 +517,30 @@ Lifecycle hooks solve a specific problem: **cross-cutting concerns that shouldn'
 2. **Explicit control flow** - Hooks don't short-circuit or hide behavior
 3. **Separation of concerns** - Keep route definitions focused on business logic
 4. **Immutability where it matters** - Guards/handlers still receive readonly `ResolverInfo`
+
+### Execution Flow
+
+Understanding when hooks run in the request lifecycle:
+
+**Normal request flow:**
+```
+onRequest → routing → guards → handler → onResponse → Response
+```
+
+**When an exception occurs:**
+```
+onRequest → routing → guards → handler
+    ↓ (exception anywhere)
+  onError → Response
+    ↓
+(onResponse is skipped)
+```
+
+**Key points:**
+- `onRequest` runs first, before any routing
+- `onResponse` only runs if no exceptions occur
+- `onError` catches exceptions from anywhere in the pipeline
+- If `onError` is triggered, `onResponse` is skipped
 
 ### Available Hooks
 
@@ -536,14 +571,28 @@ const app = setupNimble({
 ```
 
 **Characteristics:**
-- Returns `void` (no ability to short-circuit)
-- Cannot modify the request (observability only)
+- Returns `void` (observability only - cannot reject requests or return responses early)
+- Cannot modify the request (read-only access)
+- To reject a request, use a guard instead or throw an exception
 - Exceptions here are caught by `onError`
 
 ### `onResponse` - Post-Handler Hook
 
 Runs **after handler execution, before returning response**. Use for response transformation and augmentation.
 
+**Example: Just logging (pass-through pattern)**
+```ts
+const app = setupNimble({
+  handlers,
+  onResponse: (request, response, requestId) => {
+    // Just log - return the response unchanged
+    console.log(`[${requestId}] ${request.method} ${request.url} → ${response.status}`);
+    return response;
+  },
+});
+```
+
+**Example: Adding headers (transformation pattern)**
 ```ts
 const app = setupNimble({
   handlers,
@@ -553,9 +602,6 @@ const app = setupNimble({
     headers.set("X-Request-ID", requestId);
     headers.set("X-Content-Type-Options", "nosniff");
     headers.set("X-Frame-Options", "DENY");
-    
-    // Log response
-    console.log(`[${requestId}] ${request.method} ${request.url} → ${response.status}`);
     
     // Return augmented response
     return new Response(response.body, {
@@ -570,7 +616,7 @@ const app = setupNimble({
 **Characteristics:**
 - Receives the response from guards/handlers
 - Can transform or augment the response
-- Must return a `Response` object
+- Must return a `Response` object (can be the same one you received)
 - Exceptions here are caught by `onError`
 
 ### `onError` - Exception Handler
