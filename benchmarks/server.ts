@@ -2,13 +2,22 @@ import { route, setupNimble } from "../packages/core/mod.ts";
 
 const app = setupNimble([
   route.get("/", {
-    resolve: () => new Response("OK"),
+    resolve: () => {
+      return {
+        ok: true,
+        response: new Response("OK"),
+      };
+    },
   }),
   route.get("/json", {
-    resolve: () =>
-      new Response(JSON.stringify({ message: "Hello, World!" }), {
-        headers: { "Content-Type": "application/json" },
-      }),
+    resolve: () => {
+      return {
+        ok: true,
+        response: new Response(JSON.stringify({ message: "Hello, World!" }), {
+          headers: { "Content-Type": "application/json" },
+        }),
+      };
+    },
   }),
 ]);
 
