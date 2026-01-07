@@ -9,7 +9,7 @@ A minimal, type-safe web framework built on Web Standards API (`Request`/`Respon
 Nimble follows a simple flow:
 
 ```
-Request → Router (URLPattern matching) → Guards → Handler (with context) → Response
+Request → onRequest → Router (URLPattern matching) → Guards → Handler (with context) → onResponse → Response
 ```
 
 **Key Features:**
@@ -19,6 +19,7 @@ Request → Router (URLPattern matching) → Guards → Handler (with context) �
 - Guards for authentication, authorization, and request validation
 - Handler grouping with composable guards
 - `URLPattern`-based routing with path parameters
+- Lifecycle hooks (`onRequest`, `onResponse`, `onError`) for cross-cutting concerns
 - Centralized exception handling with custom `onError` handlers
 - Zero external dependencies
 
@@ -272,7 +273,9 @@ setupNimble(handlers);
 // Advanced usage: config object
 interface NimbleConfig {
   handlers: Handler[];
-  onError?: OnErrorHandler;  // Optional custom error handler
+  onError?: OnErrorHandler;        // Optional custom error handler
+  onRequest?: OnRequestHandler;    // Optional request lifecycle hook
+  onResponse?: OnResponseHandler;  // Optional response lifecycle hook
 }
 ```
 
@@ -286,6 +289,8 @@ interface ErrorContext {
 }
 
 type OnErrorHandler = (ctx: ErrorContext) => Response | Promise<Response>;
+type OnRequestHandler = (request: Request) => void | Promise<void>;
+type OnResponseHandler = (request: Request, response: Response, requestId: string) => Response | Promise<Response>;
 ```
 
 **Returns:**
@@ -485,6 +490,189 @@ route.get("/me", {
   },
 });
 ```
+
+---
+
+## Lifecycle Hooks
+
+Nimble provides optional lifecycle hooks for cross-cutting concerns like logging, metrics, and response transformation. Hooks are **opt-in**, **non-invasive**, and designed to complement (not replace) the explicit guard → handler flow.
+
+### Philosophy
+
+Lifecycle hooks solve a specific problem: **cross-cutting concerns that shouldn't pollute route definitions**. They enable observability and response augmentation without disrupting your explicit, value-based request handling.
+
+**Design Principles:**
+1. **Optional and non-invasive** - Framework works perfectly without them
+2. **Explicit control flow** - Hooks don't short-circuit or hide behavior
+3. **Separation of concerns** - Keep route definitions focused on business logic
+4. **Immutability where it matters** - Guards/handlers still receive readonly `ResolverInfo`
+
+### Available Hooks
+
+| Hook | When | Use Cases | Return Type |
+|------|------|-----------|-------------|
+| `onRequest` | Before routing begins | Request logging, metrics, rate limiting | `void \| Promise<void>` |
+| `onResponse` | After handler execution, before returning | Response logging, header injection (CORS, security), compression | `Response \| Promise<Response>` |
+| `onError` | When an exception is thrown | Error logging, monitoring integration, sanitized error responses | `Response \| Promise<Response>` |
+
+### `onRequest` - Pre-Routing Hook
+
+Runs **before routing begins**. Use for request-level observability and preprocessing.
+
+```ts
+const app = setupNimble({
+  handlers,
+  onRequest: (request) => {
+    // Log incoming request
+    console.log(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
+    
+    // Track metrics
+    metrics.increment("http.requests.total", {
+      method: request.method,
+      path: new URL(request.url).pathname,
+    });
+  },
+});
+```
+
+**Characteristics:**
+- Returns `void` (no ability to short-circuit)
+- Cannot modify the request (observability only)
+- Exceptions here are caught by `onError`
+
+### `onResponse` - Post-Handler Hook
+
+Runs **after handler execution, before returning response**. Use for response transformation and augmentation.
+
+```ts
+const app = setupNimble({
+  handlers,
+  onResponse: (request, response, requestId) => {
+    // Add security headers
+    const headers = new Headers(response.headers);
+    headers.set("X-Request-ID", requestId);
+    headers.set("X-Content-Type-Options", "nosniff");
+    headers.set("X-Frame-Options", "DENY");
+    
+    // Log response
+    console.log(`[${requestId}] ${request.method} ${request.url} → ${response.status}`);
+    
+    // Return augmented response
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  },
+});
+```
+
+**Characteristics:**
+- Receives the response from guards/handlers
+- Can transform or augment the response
+- Must return a `Response` object
+- Exceptions here are caught by `onError`
+
+### `onError` - Exception Handler
+
+Runs when an **unexpected exception** is thrown anywhere in the pipeline. See [Error Handling](#error-handling-and-validation) for full details.
+
+```ts
+const app = setupNimble({
+  handlers,
+  onError: ({ request, requestId, error }) => {
+    // Log to monitoring service
+    Sentry.captureException(error, {
+      tags: { requestId },
+      extra: { url: request.url, method: request.method },
+    });
+
+    // Return sanitized response
+    return Response.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  },
+});
+```
+
+### Complete Example with All Hooks
+
+```ts
+import { route, setupNimble } from "@bastianplsfix/nimble";
+
+const handlers = [
+  route.get("/users/:id", {
+    resolve: ({ params }) => {
+      const user = findUser(params.id);
+      if (!user) {
+        return { ok: false, response: Response.json({ error: "Not found" }, { status: 404 }) };
+      }
+      return { ok: true, response: Response.json(user) };
+    },
+  }),
+];
+
+const app = setupNimble({
+  handlers,
+  
+  // Track all incoming requests
+  onRequest: (request) => {
+    const start = performance.now();
+    // Store start time for duration tracking (using global Map or similar)
+    requestTimings.set(request, start);
+  },
+  
+  // Add headers and log responses
+  onResponse: (request, response, requestId) => {
+    // Calculate request duration
+    const start = requestTimings.get(request);
+    const duration = start ? performance.now() - start : 0;
+    requestTimings.delete(request);
+    
+    // Log with duration
+    logger.info({
+      requestId,
+      method: request.method,
+      url: request.url,
+      status: response.status,
+      duration: `${duration.toFixed(2)}ms`,
+    });
+    
+    // Add CORS and security headers
+    const headers = new Headers(response.headers);
+    headers.set("X-Request-ID", requestId);
+    headers.set("Access-Control-Allow-Origin", "*");
+    headers.set("X-Content-Type-Options", "nosniff");
+    
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  },
+  
+  // Handle unexpected errors
+  onError: ({ request, requestId, error }) => {
+    logger.error({ requestId, error, url: request.url });
+    return Response.json({ error: "Internal Server Error" }, { status: 500 });
+  },
+});
+```
+
+### When NOT to Use Hooks
+
+**Don't use hooks for:**
+- **Request validation** - Use guards instead (explicit, route-specific)
+- **Authentication/Authorization** - Use guards instead (composable, testable)
+- **Business logic** - Put it in handlers (where it belongs)
+- **Route-specific behavior** - Keep it in the route definition (explicit is better)
+
+**Hooks are for:**
+- Logging and metrics (same for all routes)
+- Security headers (same for all routes)
+- Distributed tracing (same for all routes)
+- Error monitoring (same for all routes)
 
 ---
 

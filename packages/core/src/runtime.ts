@@ -18,6 +18,18 @@ export type OnErrorHandler = (
   ctx: ErrorContext,
 ) => Response | Promise<Response>;
 
+// onRequest hook that runs before routing begins
+export type OnRequestHandler = (
+  request: Request,
+) => void | Promise<void>;
+
+// onResponse hook that runs after handler execution, before returning response
+export type OnResponseHandler = (
+  request: Request,
+  response: Response,
+  requestId: string,
+) => Response | Promise<Response>;
+
 // Default onError implementation: logs the error and returns a sanitized 500 response
 const defaultOnError: OnErrorHandler = (ctx) => {
   // Log the unexpected error
@@ -39,6 +51,10 @@ export interface NimbleConfig {
   handlers: Handler[];
   /** Custom error handler for unexpected exceptions (optional) */
   onError?: OnErrorHandler;
+  /** Hook that runs before routing begins (optional) */
+  onRequest?: OnRequestHandler;
+  /** Hook that runs after handler execution, before returning response (optional) */
+  onResponse?: OnResponseHandler;
 }
 
 // Bootstrap the framework: returns a fetch handler for Deno/Bun servers
@@ -50,6 +66,8 @@ export function setupNimble(
   const onError = Array.isArray(config)
     ? defaultOnError
     : (config.onError ?? defaultOnError);
+  const onRequest = Array.isArray(config) ? undefined : config.onRequest;
+  const onResponse = Array.isArray(config) ? undefined : config.onResponse;
 
   const router = createRouter(handlers);
 
@@ -57,8 +75,23 @@ export function setupNimble(
     // Standard fetch signature compatible with Deno.serve / Bun.serve
     fetch: async (req: Request): Promise<Response> => {
       try {
+        // Run onRequest hook before routing
+        if (onRequest) {
+          await onRequest(req);
+        }
+
         // Normal request processing - guards and handlers use explicit returns
-        return await router.handle(req);
+        let response = await router.handle(req);
+
+        // Run onResponse hook after handler execution
+        if (onResponse) {
+          const requestId = req.headers.get("x-request-id") ??
+            req.headers.get("x-correlation-id") ??
+            crypto.randomUUID();
+          response = await onResponse(req, response, requestId);
+        }
+
+        return response;
       } catch (error) {
         // Exception caught = unexpected failure (bug, crash, infrastructure problem)
         // Delegate to centralized onError handler
