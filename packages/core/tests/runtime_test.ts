@@ -153,8 +153,16 @@ Deno.test("setupNimble.fetch matches custom method with route.on", async () => {
 
 Deno.test("setupNimble.fetch route.all doesn't interfere with specific routes", async () => {
   const app = setupNimble([
-    route.get("/test", { resolve: () => new Response("GET specific") }),
-    route.all("/test", { resolve: () => new Response("Any method") }),
+    route.get("/test", {
+      resolve: () => {
+        return { ok: true, response: new Response("GET specific") };
+      },
+    }),
+    route.all("/test", {
+      resolve: () => {
+        return { ok: true, response: new Response("Any method") };
+      },
+    }),
   ]);
 
   const getReq = new Request("http://localhost/test", { method: "GET" });

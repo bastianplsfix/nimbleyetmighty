@@ -1,5 +1,5 @@
 import type { Handler, RouteParams } from "./route.ts";
-import { parseCookies } from "@bastianplsfix/cookie";
+import { parseCookies } from "./cookies.ts";
 import { resolveRequestId } from "./internal/request_id.ts";
 
 interface CompiledRoute {

@@ -15,11 +15,9 @@ export {
   setupNimble,
 } from "./src/runtime.ts";
 
-// Re-export cookie functionality
+// Cookie utilities
 export {
-  type Cookie,
-  type CookieOptions,
   type CookieSerializeOptions,
-  createCookie,
-  isCookie,
-} from "@bastianplsfix/cookie";
+  parseCookies,
+  serializeCookie,
+} from "./src/cookies.ts";
