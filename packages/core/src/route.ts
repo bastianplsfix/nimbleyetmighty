@@ -13,8 +13,18 @@ export interface ResolverInfo {
   readonly cookies: Record<string, string>;
 }
 
+// Result type that makes semantic intent explicit
+// ok: true = semantically successful (2xx, 3xx redirects)
+// ok: false = expected error (4xx validation, missing resources, domain constraints)
+export type ResolveResult =
+  | { ok: true; response: Response }
+  | { ok: false; response: Response };
+
 // Function signature for route handlers
-export type HandlerFn = (info: ResolverInfo) => Response | Promise<Response>;
+// Handlers must return ResolveResult to make semantic intent explicit
+export type HandlerFn = (
+  info: ResolverInfo,
+) => ResolveResult | Promise<ResolveResult>;
 
 // Guard result types
 export type GuardResult =

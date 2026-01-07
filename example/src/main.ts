@@ -42,16 +42,31 @@ const rateLimitGuard: GuardFn = ({ request }) => {
 // Organize related handlers into groups
 const userHandlers = [
   route.get("/users", {
-    resolve: () =>
-      Response.json([
+    resolve: () => ({
+      ok: true,
+      response: Response.json([
         { id: 1, name: "Alice" },
         { id: 2, name: "Bob" },
       ]),
+    }),
   }),
 
   route.get("/users/:id", {
     resolve: ({ params }) => {
-      return Response.json({ userId: params.id });
+      // Simulate fetching a user
+      const user = params.id === "1"
+        ? { id: "1", name: "Alice", email: "alice@example.com" }
+        : null;
+
+      // Use ResolveResult pattern to make semantic intent explicit
+      if (!user) {
+        return {
+          ok: false,
+          response: Response.json({ error: "User not found" }, { status: 404 }),
+        };
+      }
+
+      return { ok: true, response: Response.json(user) };
     },
   }),
 
@@ -59,42 +74,68 @@ const userHandlers = [
     resolve: async ({ request, requestId }) => {
       const user = await request.json();
       console.log(`[${requestId}] Creating user:`, user);
-      return Response.json({ id: crypto.randomUUID(), ...user }, {
-        status: 201,
-      });
+      return {
+        ok: true,
+        response: Response.json({ id: crypto.randomUUID(), ...user }, {
+          status: 201,
+        }),
+      };
     },
   }),
 
   route.head("/users/:id", {
-    resolve: () => new Response(null, { headers: { "Content-Length": "42" } }),
+    resolve: () => ({
+      ok: true,
+      response: new Response(null, { headers: { "Content-Length": "42" } }),
+    }),
   }),
 ];
 
 const productHandlers = [
   route.get("/products", {
-    resolve: () =>
-      Response.json([
+    resolve: () => ({
+      ok: true,
+      response: Response.json([
         { id: 1, name: "Widget", price: 19.99 },
         { id: 2, name: "Gadget", price: 29.99 },
       ]),
+    }),
   }),
 
   route.get("/products/:id", {
-    resolve: ({ params }) => {
-      return Response.json({
+    resolve: ({ params }) => ({
+      ok: true,
+      response: Response.json({
         productId: params.id,
         name: "Sample Product",
         price: 19.99,
-      });
-    },
+      }),
+    }),
   }),
 
   route.post("/products", {
     resolve: async ({ request }) => {
       const product = await request.json();
-      return Response.json({ id: crypto.randomUUID(), ...product }, {
-        status: 201,
-      });
+
+      // Example: validate product data
+      if (!product.name || !product.price) {
+        return {
+          ok: false,
+          response: Response.json(
+            { error: "Missing required fields: name and price" },
+            { status: 400 },
+          ),
+        };
+      }
+
+      // Successful creation
+      return {
+        ok: true,
+        response: Response.json(
+          { id: crypto.randomUUID(), ...product },
+          { status: 201 },
+        ),
+      };
     },
   }),
 ];
@@ -103,25 +144,29 @@ const authHandlers = [
   route.post("/login", {
     resolve: () => {
       const sessionId = crypto.randomUUID();
-      return new Response("Logged in", {
-        status: 200,
-        headers: {
-          "Set-Cookie":
-            `session_id=${sessionId}; HttpOnly; Path=/; Max-Age=3600`,
-        },
-      });
+      return {
+        ok: true,
+        response: new Response("Logged in", {
+          status: 200,
+          headers: {
+            "Set-Cookie":
+              `session_id=${sessionId}; HttpOnly; Path=/; Max-Age=3600`,
+          },
+        }),
+      };
     },
   }),
 
   route.post("/logout", {
-    resolve: () => {
-      return new Response("Logged out", {
+    resolve: () => ({
+      ok: true,
+      response: new Response("Logged out", {
         status: 200,
         headers: {
           "Set-Cookie": "session_id=; HttpOnly; Path=/; Max-Age=0",
         },
-      });
-    },
+      }),
+    }),
   }),
 
   route.get("/me", {
@@ -129,13 +174,21 @@ const authHandlers = [
       const sessionId = cookies["session_id"];
 
       if (!sessionId) {
-        return Response.json({ error: "Not authenticated" }, { status: 401 });
+        return {
+          ok: false,
+          response: Response.json({ error: "Not authenticated" }, {
+            status: 401,
+          }),
+        };
       }
 
-      return Response.json({
-        user: "john_doe",
-        sessionId,
-      });
+      return {
+        ok: true,
+        response: Response.json({
+          user: "john_doe",
+          sessionId,
+        }),
+      };
     },
   }),
 ];
@@ -144,13 +197,22 @@ const authHandlers = [
 const protectedUserHandlers = group({
   handlers: [
     route.put("/users/:id", {
-      resolve: ({ params }) => new Response(`Updated user ${params.id}`),
+      resolve: ({ params }) => ({
+        ok: true,
+        response: new Response(`Updated user ${params.id}`),
+      }),
     }),
     route.patch("/users/:id", {
-      resolve: ({ params }) => new Response(`Patched user ${params.id}`),
+      resolve: ({ params }) => ({
+        ok: true,
+        response: new Response(`Patched user ${params.id}`),
+      }),
     }),
     route.delete("/users/:id", {
-      resolve: ({ params }) => new Response(`Deleted user ${params.id}`),
+      resolve: ({ params }) => ({
+        ok: true,
+        response: new Response(`Deleted user ${params.id}`),
+      }),
     }),
   ],
   guards: [authGuard], // All these routes require authentication
@@ -160,10 +222,16 @@ const protectedUserHandlers = group({
 const adminHandlers = group({
   handlers: [
     route.post("/admin/users/bulk-delete", {
-      resolve: () => Response.json({ deleted: 10 }),
+      resolve: () => ({
+        ok: true,
+        response: Response.json({ deleted: 10 }),
+      }),
     }),
     route.get("/admin/stats", {
-      resolve: () => Response.json({ users: 1000, products: 500 }),
+      resolve: () => ({
+        ok: true,
+        response: Response.json({ users: 1000, products: 500 }),
+      }),
     }),
   ],
   guards: [authGuard, adminGuard], // Require both authentication and admin
@@ -186,11 +254,17 @@ const app = setupNimble([
   // ─────────────────────────────────────────────────────────────
 
   route.get("/", {
-    resolve: () => new Response("Hello from Nimble!"),
+    resolve: () => ({
+      ok: true,
+      response: new Response("Hello from Nimble!"),
+    }),
   }),
 
   route.get("/health", {
-    resolve: () => new Response("OK"),
+    resolve: () => ({
+      ok: true,
+      response: new Response("OK"),
+    }),
   }),
 
   // ─────────────────────────────────────────────────────────────
@@ -207,7 +281,10 @@ const app = setupNimble([
   route.post("/echo", {
     resolve: async ({ request }) => {
       const body = await request.text();
-      return new Response(body);
+      return {
+        ok: true,
+        response: new Response(body),
+      };
     },
   }),
 
@@ -216,9 +293,10 @@ const app = setupNimble([
   // ─────────────────────────────────────────────────────────────
 
   route.get("/json", {
-    resolve: () => {
-      return Response.json({ hello: "world" });
-    },
+    resolve: () => ({
+      ok: true,
+      response: Response.json({ hello: "world" }),
+    }),
   }),
 
   // ─────────────────────────────────────────────────────────────
@@ -226,12 +304,13 @@ const app = setupNimble([
   // ─────────────────────────────────────────────────────────────
 
   route.get("/users/:userId/posts/:postId", {
-    resolve: ({ params }) => {
-      return Response.json({
+    resolve: ({ params }) => ({
+      ok: true,
+      response: Response.json({
         userId: params.userId,
         postId: params.postId,
-      });
-    },
+      }),
+    }),
   }),
 
   // ─────────────────────────────────────────────────────────────
@@ -245,12 +324,15 @@ const app = setupNimble([
       const page = url.searchParams.get("page") ?? "1";
       const limit = url.searchParams.get("limit") ?? "10";
 
-      return Response.json({
-        query,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        results: [],
-      });
+      return {
+        ok: true,
+        response: Response.json({
+          query,
+          page: parseInt(page),
+          limit: parseInt(limit),
+          results: [],
+        }),
+      };
     },
   }),
 
@@ -272,7 +354,10 @@ const app = setupNimble([
   route.get("/trace", {
     resolve: ({ requestId }) => {
       console.log(`[${requestId}] Processing trace request`);
-      return Response.json({ requestId });
+      return {
+        ok: true,
+        response: Response.json({ requestId }),
+      };
     },
   }),
 
@@ -291,11 +376,14 @@ const app = setupNimble([
         `[${requestId}] GET /api/data completed in ${duration.toFixed(2)}ms`,
       );
 
-      return Response.json({
-        requestId,
-        data: [1, 2, 3],
-        meta: { duration: `${duration.toFixed(2)}ms` },
-      });
+      return {
+        ok: true,
+        response: Response.json({
+          requestId,
+          data: [1, 2, 3],
+          meta: { duration: `${duration.toFixed(2)}ms` },
+        }),
+      };
     },
   }),
 
@@ -309,20 +397,27 @@ const app = setupNimble([
       request.headers.forEach((value, key) => {
         headers[key] = value;
       });
-      return Response.json(headers);
+      return {
+        ok: true,
+        response: Response.json(headers),
+      };
     },
   }),
 
   route.get("/user-agent", {
     resolve: ({ request }) => {
       const userAgent = request.headers.get("user-agent") ?? "Unknown";
-      return new Response(userAgent);
+      return {
+        ok: true,
+        response: new Response(userAgent),
+      };
     },
   }),
 
   route.options("/api", {
-    resolve: () =>
-      new Response(null, {
+    resolve: () => ({
+      ok: true,
+      response: new Response(null, {
         headers: {
           "Allow": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
           "Access-Control-Allow-Origin": "*",
@@ -330,6 +425,7 @@ const app = setupNimble([
           "Access-Control-Allow-Headers": "Content-Type, Authorization",
         },
       }),
+    }),
   }),
 
   // ─────────────────────────────────────────────────────────────
@@ -338,8 +434,10 @@ const app = setupNimble([
 
   // Match any HTTP method
   route.all("/wildcard", {
-    resolve: ({ request }) =>
-      new Response(`Received ${request.method} request`),
+    resolve: ({ request }) => ({
+      ok: true,
+      response: new Response(`Received ${request.method} request`),
+    }),
   }),
 
   // Wildcard path segment
@@ -347,7 +445,10 @@ const app = setupNimble([
     resolve: ({ request }) => {
       const url = new URL(request.url);
       const filePath = url.pathname.replace("/files/", "");
-      return new Response(`Requested file: ${filePath}`);
+      return {
+        ok: true,
+        response: new Response(`Requested file: ${filePath}`),
+      };
     },
   }),
 
@@ -356,13 +457,19 @@ const app = setupNimble([
   // ─────────────────────────────────────────────────────────────
 
   route.on("PROPFIND", "/webdav", {
-    resolve: () => new Response("WebDAV PROPFIND response"),
+    resolve: () => ({
+      ok: true,
+      response: new Response("WebDAV PROPFIND response"),
+    }),
   }),
 
   route.on("PURGE", "/cache", {
     resolve: ({ requestId }) => {
       console.log(`[${requestId}] Cache purge requested`);
-      return new Response("Cache cleared");
+      return {
+        ok: true,
+        response: new Response("Cache cleared"),
+      };
     },
   }),
 
@@ -371,21 +478,23 @@ const app = setupNimble([
   // ─────────────────────────────────────────────────────────────
 
   route.get("/error", {
-    resolve: () => {
-      return Response.json(
+    resolve: () => ({
+      ok: false,
+      response: Response.json(
         { error: "Something went wrong" },
         { status: 500 },
-      );
-    },
+      ),
+    }),
   }),
 
   route.get("/not-found-example", {
-    resolve: () => {
-      return Response.json(
+    resolve: () => ({
+      ok: false,
+      response: Response.json(
         { error: "Resource not found" },
         { status: 404 },
-      );
-    },
+      ),
+    }),
   }),
 
   // ─────────────────────────────────────────────────────────────
@@ -394,12 +503,20 @@ const app = setupNimble([
 
   route.get("/old-path", {
     resolve: () => {
-      return Response.redirect("http://localhost:8000/new-path", 301);
+      // Redirects are semantically successful (ok: true)
+      // They represent deliberate, intentional control flow
+      return {
+        ok: true,
+        response: Response.redirect("http://localhost:8000/new-path", 301),
+      };
     },
   }),
 
   route.get("/new-path", {
-    resolve: () => new Response("You've been redirected!"),
+    resolve: () => ({
+      ok: true,
+      response: new Response("You've been redirected!"),
+    }),
   }),
 
   // ─────────────────────────────────────────────────────────────
@@ -418,9 +535,12 @@ const app = setupNimble([
         },
       });
 
-      return new Response(stream, {
-        headers: { "Content-Type": "text/plain" },
-      });
+      return {
+        ok: true,
+        response: new Response(stream, {
+          headers: { "Content-Type": "text/plain" },
+        }),
+      };
     },
   }),
 ]);

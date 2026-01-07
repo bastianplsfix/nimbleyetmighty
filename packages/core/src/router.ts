@@ -69,7 +69,10 @@ export function createRouter(handlers: Handler[]) {
       }
 
       // All guards passed, execute the handler
-      return matched.handler.handler(resolverInfo);
+      const result = await matched.handler.handler(resolverInfo);
+
+      // Extract the response from ResolveResult
+      return result.response;
     },
   };
 }
