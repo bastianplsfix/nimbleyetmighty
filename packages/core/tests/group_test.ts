@@ -3,7 +3,9 @@ import { group, type GuardFn } from "../mod.ts";
 import { route } from "../mod.ts";
 
 Deno.test("group flattens a single handler", () => {
-  const handler = route.get("/test", { resolve: () => new Response("OK") });
+  const handler = route.get("/test", {
+    resolve: () => ({ ok: true, response: new Response("OK") }),
+  });
   const handlers = group({ handlers: [handler] });
 
   assertEquals(handlers.length, 1);
@@ -13,10 +15,10 @@ Deno.test("group flattens a single handler", () => {
 
 Deno.test("group flattens multiple handlers", () => {
   const handler1 = route.get("/users", {
-    resolve: () => new Response("Users"),
+    resolve: () => ({ ok: true, response: new Response("Users") }),
   });
   const handler2 = route.post("/users", {
-    resolve: () => new Response("Create User"),
+    resolve: () => ({ ok: true, response: new Response("Create User") }),
   });
   const handlers = group({ handlers: [handler1, handler2] });
 
@@ -29,12 +31,20 @@ Deno.test("group flattens multiple handlers", () => {
 
 Deno.test("group flattens nested handler arrays", () => {
   const userHandlers = [
-    route.get("/users", { resolve: () => new Response("Users") }),
-    route.post("/users", { resolve: () => new Response("Create User") }),
+    route.get("/users", {
+      resolve: () => ({ ok: true, response: new Response("Users") }),
+    }),
+    route.post("/users", {
+      resolve: () => ({ ok: true, response: new Response("Create User") }),
+    }),
   ];
   const productHandlers = [
-    route.get("/products", { resolve: () => new Response("Products") }),
-    route.post("/products", { resolve: () => new Response("Create Product") }),
+    route.get("/products", {
+      resolve: () => ({ ok: true, response: new Response("Products") }),
+    }),
+    route.post("/products", {
+      resolve: () => ({ ok: true, response: new Response("Create Product") }),
+    }),
   ];
   const handlers = group({ handlers: [userHandlers, productHandlers] });
 
@@ -47,15 +57,23 @@ Deno.test("group flattens nested handler arrays", () => {
 
 Deno.test("group flattens deeply nested handler groups", () => {
   const userHandlers = [
-    route.get("/users", { resolve: () => new Response("Users") }),
-    route.post("/users", { resolve: () => new Response("Create User") }),
+    route.get("/users", {
+      resolve: () => ({ ok: true, response: new Response("Users") }),
+    }),
+    route.post("/users", {
+      resolve: () => ({ ok: true, response: new Response("Create User") }),
+    }),
   ];
   const productHandlers = [
-    route.get("/products", { resolve: () => new Response("Products") }),
+    route.get("/products", {
+      resolve: () => ({ ok: true, response: new Response("Products") }),
+    }),
   ];
   const adminHandlers = group({ handlers: [userHandlers, productHandlers] });
   const publicHandlers = [
-    route.get("/", { resolve: () => new Response("Home") }),
+    route.get("/", {
+      resolve: () => ({ ok: true, response: new Response("Home") }),
+    }),
   ];
   const allHandlers = group({ handlers: [adminHandlers, publicHandlers] });
 
@@ -68,14 +86,22 @@ Deno.test("group flattens deeply nested handler groups", () => {
 
 Deno.test("group handles mixed single handlers and arrays", () => {
   const userHandlers = [
-    route.get("/users", { resolve: () => new Response("Users") }),
-    route.post("/users", { resolve: () => new Response("Create User") }),
+    route.get("/users", {
+      resolve: () => ({ ok: true, response: new Response("Users") }),
+    }),
+    route.post("/users", {
+      resolve: () => ({ ok: true, response: new Response("Create User") }),
+    }),
   ];
   const handlers = group({
     handlers: [
       userHandlers,
-      route.get("/products", { resolve: () => new Response("Products") }),
-      route.get("/", { resolve: () => new Response("Home") }),
+      route.get("/products", {
+        resolve: () => ({ ok: true, response: new Response("Products") }),
+      }),
+      route.get("/", {
+        resolve: () => ({ ok: true, response: new Response("Home") }),
+      }),
     ],
   });
 
@@ -96,9 +122,11 @@ Deno.test("group applies guards to all handlers", () => {
 
   const handlers = group({
     handlers: [
-      route.get("/protected", { resolve: () => new Response("Secret") }),
+      route.get("/protected", {
+        resolve: () => ({ ok: true, response: new Response("Secret") }),
+      }),
       route.post("/protected/action", {
-        resolve: () => new Response("Action"),
+        resolve: () => ({ ok: true, response: new Response("Action") }),
       }),
     ],
     guards: [authGuard],
@@ -114,7 +142,7 @@ Deno.test("group guards are prepended to handler-level guards", () => {
   const handlerGuard: GuardFn = () => ({ allow: true });
 
   const handlerWithGuard = route.get("/test", {
-    resolve: () => new Response("OK"),
+    resolve: () => ({ ok: true, response: new Response("OK") }),
     guards: [handlerGuard],
   });
 
@@ -134,8 +162,12 @@ Deno.test("group guards apply to nested groups", () => {
 
   const innerHandlers = group({
     handlers: [
-      route.get("/api/users", { resolve: () => new Response("Users") }),
-      route.get("/api/posts", { resolve: () => new Response("Posts") }),
+      route.get("/api/users", {
+        resolve: () => ({ ok: true, response: new Response("Users") }),
+      }),
+      route.get("/api/posts", {
+        resolve: () => ({ ok: true, response: new Response("Posts") }),
+      }),
     ],
     guards: [innerGuard],
   });
