@@ -1,4 +1,31 @@
-import { group, type GuardFn, route, setupNimble } from "@bastianplsfix/nimble";
+import {
+  group,
+  type GuardFn,
+  route,
+  setupNimble,
+  type ValidatorAdapter,
+} from "@bastianplsfix/nimble";
+import { z } from "npm:zod@3.24.1";
+
+// ─────────────────────────────────────────────────────────────
+// Validation Adapter (Zod)
+// ─────────────────────────────────────────────────────────────
+
+const zodAdapter: ValidatorAdapter = {
+  parse(schema, data) {
+    const result = (schema as z.ZodType).safeParse(data);
+    if (result.success) {
+      return { ok: true, data: result.data };
+    }
+    return {
+      ok: false,
+      errors: result.error.errors.map((e) => ({
+        path: e.path.map(String),
+        message: e.message,
+      })),
+    };
+  },
+};
 
 // ─────────────────────────────────────────────────────────────
 // Guards (Middleware)
@@ -71,8 +98,21 @@ const userHandlers = [
   }),
 
   route.post("/users", {
-    resolve: async ({ request, requestId }) => {
-      const user = await request.json();
+    input: {
+      body: z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+      }),
+    },
+    resolve: ({ input, requestId }) => {
+      if (!input.ok) {
+        return {
+          ok: false,
+          response: Response.json({ errors: input.errors }, { status: 400 }),
+        };
+      }
+
+      const user = input.body as { name: string; email: string };
       console.log(`[${requestId}] Creating user:`, user);
       return {
         ok: true,
@@ -114,21 +154,21 @@ const productHandlers = [
   }),
 
   route.post("/products", {
-    resolve: async ({ request }) => {
-      const product = await request.json();
-
-      // Example: validate product data
-      if (!product.name || !product.price) {
+    input: {
+      body: z.object({
+        name: z.string().min(1),
+        price: z.number().positive(),
+      }),
+    },
+    resolve: ({ input }) => {
+      if (!input.ok) {
         return {
           ok: false,
-          response: Response.json(
-            { error: "Missing required fields: name and price" },
-            { status: 400 },
-          ),
+          response: Response.json({ errors: input.errors }, { status: 400 }),
         };
       }
 
-      // Successful creation
+      const product = input.body as { name: string; price: number };
       return {
         ok: true,
         response: Response.json(
@@ -248,301 +288,313 @@ const apiHandlers = group({
   ],
 });
 
-const app = setupNimble([
-  // ─────────────────────────────────────────────────────────────
-  // Basic Routes
-  // ─────────────────────────────────────────────────────────────
+const app = setupNimble({
+  validator: zodAdapter,
+  handlers: [
+    // ─────────────────────────────────────────────────────────────
+    // Basic Routes
+    // ─────────────────────────────────────────────────────────────
 
-  route.get("/", {
-    resolve: () => ({
-      ok: true,
-      response: new Response("Hello from Nimble!"),
-    }),
-  }),
-
-  route.get("/health", {
-    resolve: () => ({
-      ok: true,
-      response: new Response("OK"),
-    }),
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Composed API Handlers
-  // ─────────────────────────────────────────────────────────────
-
-  // Include all grouped handlers
-  ...apiHandlers,
-
-  // ─────────────────────────────────────────────────────────────
-  // Request Body
-  // ─────────────────────────────────────────────────────────────
-
-  route.post("/echo", {
-    resolve: async ({ request }) => {
-      const body = await request.text();
-      return {
+    route.get("/", {
+      resolve: () => ({
         ok: true,
-        response: new Response(body),
-      };
-    },
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // JSON Response
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/json", {
-    resolve: () => ({
-      ok: true,
-      response: Response.json({ hello: "world" }),
-    }),
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Path Parameters
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/users/:userId/posts/:postId", {
-    resolve: ({ params }) => ({
-      ok: true,
-      response: Response.json({
-        userId: params.userId,
-        postId: params.postId,
+        response: new Response("Hello from Nimble!"),
       }),
     }),
-  }),
 
-  // ─────────────────────────────────────────────────────────────
-  // Query Parameters (via request.url)
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/search", {
-    resolve: ({ request }) => {
-      const url = new URL(request.url);
-      const query = url.searchParams.get("q") ?? "";
-      const page = url.searchParams.get("page") ?? "1";
-      const limit = url.searchParams.get("limit") ?? "10";
-
-      return {
+    route.get("/health", {
+      resolve: () => ({
         ok: true,
-        response: Response.json({
-          query,
-          page: parseInt(page),
-          limit: parseInt(limit),
-          results: [],
-        }),
-      };
-    },
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Cookies (handled by authHandlers group above)
-  // ─────────────────────────────────────────────────────────────
-  // See /login, /logout, and /me routes in authHandlers
-
-  // ─────────────────────────────────────────────────────────────
-  // Request ID (tracing/logging)
-  // ─────────────────────────────────────────────────────────────
-
-  // requestId is resolved from:
-  // 1. traceparent header (W3C Trace Context)
-  // 2. x-request-id header
-  // 3. x-correlation-id header
-  // 4. Generated UUID (fallback)
-
-  route.get("/trace", {
-    resolve: ({ requestId }) => {
-      console.log(`[${requestId}] Processing trace request`);
-      return {
-        ok: true,
-        response: Response.json({ requestId }),
-      };
-    },
-  }),
-
-  route.get("/api/data", {
-    resolve: async ({ requestId }) => {
-      const start = performance.now();
-
-      // Log incoming request
-      console.log(`[${requestId}] GET /api/data started`);
-
-      // Simulate async work
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      const duration = performance.now() - start;
-      console.log(
-        `[${requestId}] GET /api/data completed in ${duration.toFixed(2)}ms`,
-      );
-
-      return {
-        ok: true,
-        response: Response.json({
-          requestId,
-          data: [1, 2, 3],
-          meta: { duration: `${duration.toFixed(2)}ms` },
-        }),
-      };
-    },
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Headers
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/headers", {
-    resolve: ({ request }) => {
-      const headers: Record<string, string> = {};
-      request.headers.forEach((value, key) => {
-        headers[key] = value;
-      });
-      return {
-        ok: true,
-        response: Response.json(headers),
-      };
-    },
-  }),
-
-  route.get("/user-agent", {
-    resolve: ({ request }) => {
-      const userAgent = request.headers.get("user-agent") ?? "Unknown";
-      return {
-        ok: true,
-        response: new Response(userAgent),
-      };
-    },
-  }),
-
-  route.options("/api", {
-    resolve: () => ({
-      ok: true,
-      response: new Response(null, {
-        headers: {
-          "Allow": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
+        response: new Response("OK"),
       }),
     }),
-  }),
 
-  // ─────────────────────────────────────────────────────────────
-  // Wildcard Routes
-  // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Composed API Handlers
+    // ─────────────────────────────────────────────────────────────
 
-  // Match any HTTP method
-  route.all("/wildcard", {
-    resolve: ({ request }) => ({
-      ok: true,
-      response: new Response(`Received ${request.method} request`),
+    // Include all grouped handlers
+    ...apiHandlers,
+
+    // ─────────────────────────────────────────────────────────────
+    // Request Body
+    // ─────────────────────────────────────────────────────────────
+
+    route.post("/echo", {
+      resolve: async ({ request }) => {
+        const body = await request.text();
+        return {
+          ok: true,
+          response: new Response(body),
+        };
+      },
     }),
-  }),
 
-  // Wildcard path segment
-  route.get("/files/*", {
-    resolve: ({ request }) => {
-      const url = new URL(request.url);
-      const filePath = url.pathname.replace("/files/", "");
-      return {
+    // ─────────────────────────────────────────────────────────────
+    // JSON Response
+    // ─────────────────────────────────────────────────────────────
+
+    route.get("/json", {
+      resolve: () => ({
         ok: true,
-        response: new Response(`Requested file: ${filePath}`),
-      };
-    },
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Custom HTTP Methods
-  // ─────────────────────────────────────────────────────────────
-
-  route.on("PROPFIND", "/webdav", {
-    resolve: () => ({
-      ok: true,
-      response: new Response("WebDAV PROPFIND response"),
+        response: Response.json({ hello: "world" }),
+      }),
     }),
-  }),
 
-  route.on("PURGE", "/cache", {
-    resolve: ({ requestId }) => {
-      console.log(`[${requestId}] Cache purge requested`);
-      return {
+    // ─────────────────────────────────────────────────────────────
+    // Path Parameters
+    // ─────────────────────────────────────────────────────────────
+
+    route.get("/users/:userId/posts/:postId", {
+      resolve: ({ params }) => ({
         ok: true,
-        response: new Response("Cache cleared"),
-      };
-    },
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Error Handling
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/error", {
-    resolve: () => ({
-      ok: false,
-      response: Response.json(
-        { error: "Something went wrong" },
-        { status: 500 },
-      ),
-    }),
-  }),
-
-  route.get("/not-found-example", {
-    resolve: () => ({
-      ok: false,
-      response: Response.json(
-        { error: "Resource not found" },
-        { status: 404 },
-      ),
-    }),
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Redirect
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/old-path", {
-    resolve: () => {
-      // Redirects are semantically successful (ok: true)
-      // They represent deliberate, intentional control flow
-      return {
-        ok: true,
-        response: Response.redirect("http://localhost:8000/new-path", 301),
-      };
-    },
-  }),
-
-  route.get("/new-path", {
-    resolve: () => ({
-      ok: true,
-      response: new Response("You've been redirected!"),
-    }),
-  }),
-
-  // ─────────────────────────────────────────────────────────────
-  // Streaming Response
-  // ─────────────────────────────────────────────────────────────
-
-  route.get("/stream", {
-    resolve: () => {
-      const stream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode("chunk 1\n"));
-          setTimeout(() => {
-            controller.enqueue(new TextEncoder().encode("chunk 2\n"));
-            controller.close();
-          }, 1000);
-        },
-      });
-
-      return {
-        ok: true,
-        response: new Response(stream, {
-          headers: { "Content-Type": "text/plain" },
+        response: Response.json({
+          userId: params.userId,
+          postId: params.postId,
         }),
-      };
-    },
-  }),
-]);
+      }),
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Query Parameters (with validation)
+    // ─────────────────────────────────────────────────────────────
+
+    route.get("/search", {
+      input: {
+        query: z.object({
+          q: z.string().min(1),
+          page: z.coerce.number().positive().default(1),
+          limit: z.coerce.number().positive().max(100).default(20),
+        }),
+      },
+      resolve: ({ input }) => {
+        if (!input.ok) {
+          return {
+            ok: false,
+            response: Response.json({ errors: input.errors }, { status: 400 }),
+          };
+        }
+
+        return {
+          ok: true,
+          response: Response.json({
+            query: input.query.q,
+            page: input.query.page,
+            limit: input.query.limit,
+            results: [],
+          }),
+        };
+      },
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Cookies (handled by authHandlers group above)
+    // ─────────────────────────────────────────────────────────────
+    // See /login, /logout, and /me routes in authHandlers
+
+    // ─────────────────────────────────────────────────────────────
+    // Request ID (tracing/logging)
+    // ─────────────────────────────────────────────────────────────
+
+    // requestId is resolved from:
+    // 1. traceparent header (W3C Trace Context)
+    // 2. x-request-id header
+    // 3. x-correlation-id header
+    // 4. Generated UUID (fallback)
+
+    route.get("/trace", {
+      resolve: ({ requestId }) => {
+        console.log(`[${requestId}] Processing trace request`);
+        return {
+          ok: true,
+          response: Response.json({ requestId }),
+        };
+      },
+    }),
+
+    route.get("/api/data", {
+      resolve: async ({ requestId }) => {
+        const start = performance.now();
+
+        // Log incoming request
+        console.log(`[${requestId}] GET /api/data started`);
+
+        // Simulate async work
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        const duration = performance.now() - start;
+        console.log(
+          `[${requestId}] GET /api/data completed in ${duration.toFixed(2)}ms`,
+        );
+
+        return {
+          ok: true,
+          response: Response.json({
+            requestId,
+            data: [1, 2, 3],
+            meta: { duration: `${duration.toFixed(2)}ms` },
+          }),
+        };
+      },
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Headers
+    // ─────────────────────────────────────────────────────────────
+
+    route.get("/headers", {
+      resolve: ({ request }) => {
+        const headers: Record<string, string> = {};
+        request.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+        return {
+          ok: true,
+          response: Response.json(headers),
+        };
+      },
+    }),
+
+    route.get("/user-agent", {
+      resolve: ({ request }) => {
+        const userAgent = request.headers.get("user-agent") ?? "Unknown";
+        return {
+          ok: true,
+          response: new Response(userAgent),
+        };
+      },
+    }),
+
+    route.options("/api", {
+      resolve: () => ({
+        ok: true,
+        response: new Response(null, {
+          headers: {
+            "Allow": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+          },
+        }),
+      }),
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Wildcard Routes
+    // ─────────────────────────────────────────────────────────────
+
+    // Match any HTTP method
+    route.all("/wildcard", {
+      resolve: ({ request }) => ({
+        ok: true,
+        response: new Response(`Received ${request.method} request`),
+      }),
+    }),
+
+    // Wildcard path segment
+    route.get("/files/*", {
+      resolve: ({ request }) => {
+        const url = new URL(request.url);
+        const filePath = url.pathname.replace("/files/", "");
+        return {
+          ok: true,
+          response: new Response(`Requested file: ${filePath}`),
+        };
+      },
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Custom HTTP Methods
+    // ─────────────────────────────────────────────────────────────
+
+    route.on("PROPFIND", "/webdav", {
+      resolve: () => ({
+        ok: true,
+        response: new Response("WebDAV PROPFIND response"),
+      }),
+    }),
+
+    route.on("PURGE", "/cache", {
+      resolve: ({ requestId }) => {
+        console.log(`[${requestId}] Cache purge requested`);
+        return {
+          ok: true,
+          response: new Response("Cache cleared"),
+        };
+      },
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Error Handling
+    // ─────────────────────────────────────────────────────────────
+
+    route.get("/error", {
+      resolve: () => ({
+        ok: false,
+        response: Response.json(
+          { error: "Something went wrong" },
+          { status: 500 },
+        ),
+      }),
+    }),
+
+    route.get("/not-found-example", {
+      resolve: () => ({
+        ok: false,
+        response: Response.json(
+          { error: "Resource not found" },
+          { status: 404 },
+        ),
+      }),
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Redirect
+    // ─────────────────────────────────────────────────────────────
+
+    route.get("/old-path", {
+      resolve: () => {
+        // Redirects are semantically successful (ok: true)
+        // They represent deliberate, intentional control flow
+        return {
+          ok: true,
+          response: Response.redirect("http://localhost:8000/new-path", 301),
+        };
+      },
+    }),
+
+    route.get("/new-path", {
+      resolve: () => ({
+        ok: true,
+        response: new Response("You've been redirected!"),
+      }),
+    }),
+
+    // ─────────────────────────────────────────────────────────────
+    // Streaming Response
+    // ─────────────────────────────────────────────────────────────
+
+    route.get("/stream", {
+      resolve: () => {
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("chunk 1\n"));
+            setTimeout(() => {
+              controller.enqueue(new TextEncoder().encode("chunk 2\n"));
+              controller.close();
+            }, 1000);
+          },
+        });
+
+        return {
+          ok: true,
+          response: new Response(stream, {
+            headers: { "Content-Type": "text/plain" },
+          }),
+        };
+      },
+    }),
+  ],
+});
 
 Deno.serve(app.fetch);

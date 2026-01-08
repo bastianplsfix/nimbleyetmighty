@@ -1,6 +1,8 @@
 import type { Handler, RouteParams } from "./route.ts";
 import { parseCookies } from "./cookies.ts";
 import { resolveRequestId } from "./internal/request_id.ts";
+import type { ValidatorAdapter } from "./validation.ts";
+import { validateInput } from "./validation.ts";
 
 interface CompiledRoute {
   handler: Handler;
@@ -12,7 +14,10 @@ export interface RouteMatch {
   params: RouteParams;
 }
 
-export function createRouter(handlers: Handler[]) {
+export function createRouter(
+  handlers: Handler[],
+  validator?: ValidatorAdapter,
+) {
   const routes: CompiledRoute[] = handlers.map((h) => ({
     handler: h,
     pattern: new URLPattern({ pathname: h.path }),
@@ -49,11 +54,20 @@ export function createRouter(handlers: Handler[]) {
       const requestId = resolveRequestId(req.headers);
       const cookies = parseCookies(req.headers.get("cookie"));
 
+      // Validate input
+      const input = await validateInput(
+        req,
+        matched.params,
+        matched.handler.input,
+        validator,
+      );
+
       const resolverInfo = {
         request: req,
         requestId,
         params: matched.params,
         cookies,
+        input,
       };
 
       // Execute guards in order
