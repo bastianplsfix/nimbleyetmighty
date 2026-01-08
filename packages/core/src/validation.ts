@@ -40,6 +40,7 @@ export interface ValidatorAdapter {
 }
 
 // Parse request body based on content type
+// Body is consumed during validation - handlers must use info.input.body, not request.json()/text()
 export async function parseBody(
   request: Request,
 ): Promise<
@@ -65,46 +66,58 @@ export async function parseBody(
       const data = await request.text();
       return { ok: true, data };
     } else {
-      // Default to JSON for empty content-type
-      const data = await request.json();
+      // Unknown or missing content-type: parse as text (fallback)
+      const data = await request.text();
       return { ok: true, data };
     }
   } catch (error) {
+    // Body parse failure - treat as validation error
+    let message = "Failed to parse request body";
+    if (error instanceof Error) {
+      // Provide more specific error messages
+      if (error.message.includes("JSON")) {
+        message = "Invalid JSON";
+      } else {
+        message = error.message;
+      }
+    }
     return {
       ok: false,
       errors: [{
         path: ["body"],
-        message: error instanceof Error
-          ? error.message
-          : "Failed to parse request body",
+        message,
       }],
     };
   }
 }
 
 // Parse query parameters into an object
+// Repeated keys become string arrays: ?tag=a&tag=b&page=2 → { tag: ["a", "b"], page: "2" }
 export function parseQuery(url: string): Record<string, unknown> {
   const searchParams = new URL(url).searchParams;
   const query: Record<string, unknown> = {};
 
+  // First pass: collect all values for each key
+  const keyValues = new Map<string, string[]>();
   for (const [key, value] of searchParams.entries()) {
-    // Handle multiple values with same key
-    if (key in query) {
-      const existing = query[key];
-      if (Array.isArray(existing)) {
-        existing.push(value);
-      } else {
-        query[key] = [existing, value];
-      }
-    } else {
-      query[key] = value;
+    if (!keyValues.has(key)) {
+      keyValues.set(key, []);
     }
+    keyValues.get(key)!.push(value);
+  }
+
+  // Second pass: assign as string or string[]
+  for (const [key, values] of keyValues) {
+    query[key] = values.length === 1 ? values[0] : values;
   }
 
   return query;
 }
 
 // Validate input using the provided validator adapter
+// Validates all defined parts (body, query, params) and aggregates errors across them
+// Does not fail fast - collects all validation errors before returning
+// Guards always run after validation, regardless of whether input.ok is true or false
 export async function validateInput<
   TBody = unknown,
   TQuery = unknown,

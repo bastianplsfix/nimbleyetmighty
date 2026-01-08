@@ -556,7 +556,148 @@ describe("Validation", () => {
     });
   });
 
+  describe("Query parameter handling", () => {
+    it("should handle repeated query parameters as arrays", async () => {
+      const handlers = [
+        route.get("/tags", {
+          input: {
+            query: object({
+              tag: {
+                _type: "array",
+                validate: (data: unknown) => {
+                  if (Array.isArray(data)) {
+                    return { ok: true, data };
+                  }
+                  return { ok: false, errors: ["Expected array"] };
+                },
+              },
+            }),
+          },
+          resolve: ({ input }) => {
+            if (!input.ok) {
+              return {
+                ok: false,
+                response: Response.json({ errors: input.errors }, {
+                  status: 400,
+                }),
+              };
+            }
+
+            return {
+              ok: true,
+              response: Response.json({ tags: input.query }),
+            };
+          },
+        }),
+      ];
+
+      const app = setupNimble({ handlers, validator: mockValidator });
+
+      // Test with repeated query parameters
+      const request = new Request("http://localhost/tags?tag=a&tag=b&tag=c");
+
+      const response = await app.fetch(request);
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.tags.tag).toEqual(["a", "b", "c"]);
+    });
+
+    it("should handle single query parameter as string", async () => {
+      const handlers = [
+        route.get("/search", {
+          input: {
+            query: object({
+              q: string(),
+            }),
+          },
+          resolve: ({ input }) => {
+            if (!input.ok) {
+              return {
+                ok: false,
+                response: Response.json({ errors: input.errors }, {
+                  status: 400,
+                }),
+              };
+            }
+
+            return {
+              ok: true,
+              response: Response.json({ query: input.query }),
+            };
+          },
+        }),
+      ];
+
+      const app = setupNimble({ handlers, validator: mockValidator });
+
+      const request = new Request("http://localhost/search?q=test");
+
+      const response = await app.fetch(request);
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.query.q).toBe("test");
+    });
+  });
+
   describe("Guards with validation", () => {
+    it("should run guards even when validation fails", async () => {
+      let guardRan = false;
+
+      const handlers = [
+        route.post("/admin", {
+          input: {
+            body: object({ action: string() }),
+          },
+          guards: [
+            ({ cookies }) => {
+              guardRan = true;
+              if (!cookies["session_id"]) {
+                return {
+                  deny: Response.json({ error: "Unauthorized" }, {
+                    status: 401,
+                  }),
+                };
+              }
+              return { allow: true };
+            },
+          ],
+          resolve: ({ input }) => {
+            if (!input.ok) {
+              return {
+                ok: false,
+                response: Response.json({ errors: input.errors }, {
+                  status: 400,
+                }),
+              };
+            }
+
+            return {
+              ok: true,
+              response: Response.json({ ok: true }),
+            };
+          },
+        }),
+      ];
+
+      const app = setupNimble({ handlers, validator: mockValidator });
+
+      // Invalid body + no auth = should return 401 (guard denies), not 400 (validation error)
+      const request = new Request("http://localhost/admin", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: 123 }), // Invalid: action should be string
+      });
+
+      const response = await app.fetch(request);
+      expect(guardRan).toBe(true);
+      expect(response.status).toBe(401); // Guard blocked before handler saw validation error
+
+      const data = await response.json();
+      expect(data.error).toBe("Unauthorized");
+    });
+
     it("should pass validated input to guards", async () => {
       const handlers = [
         route.post("/admin", {
