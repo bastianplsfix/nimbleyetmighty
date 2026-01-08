@@ -9,14 +9,16 @@ A minimal, type-safe web framework built on Web Standards API (`Request`/`Respon
 Nimble follows a simple flow:
 
 ```
-Request → onRequest → Router (URLPattern matching) → Guards → Handler (with context) → onResponse → Response
+Request → onRequest → Router → Validation → Guards → Handler → onResponse → Response
 ```
 
 **Key Features:**
 - Explicit, value-based error handling with `ResolveResult` pattern
 - MSW-style handler context with parsed URL, params, cookies, and request ID
 - Object-based route configuration with `resolve` handlers
-- Guards for authentication, authorization, and request validation
+- Zod-first request validation (canonical)
+- Pluggable validators for advanced users (no magic, no lock-in)
+- Guards for authentication, authorization, and business logic
 - Handler grouping with composable guards
 - `URLPattern`-based routing with path parameters
 - Lifecycle hooks (`onRequest`, `onResponse`, `onError`) for cross-cutting concerns
@@ -29,6 +31,7 @@ Request → onRequest → Router (URLPattern matching) → Guards → Handler (w
 
 ```ts
 import { route, setupNimble } from "@bastianplsfix/nimble";
+import { z } from "zod";
 
 const handlers = [
   route.get("/", {
@@ -56,12 +59,20 @@ const handlers = [
     },
   }),
 
+  // With Zod validation
   route.post("/users", {
-    resolve: async ({ request }) => {
-      const body = await request.json();
+    request: {
+      body: z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+      }),
+    },
+    resolve: ({ input }) => {
+      // input.body is validated and typed
+      const user = createUser(input.body);
       return {
         ok: true,
-        response: Response.json(body, { status: 201 }),
+        response: Response.json(user, { status: 201 }),
       };
     },
   }),
@@ -709,7 +720,6 @@ const app = setupNimble({
 ### When NOT to Use Hooks
 
 **Don't use hooks for:**
-- **Request validation** - Use guards instead (explicit, route-specific)
 - **Authentication/Authorization** - Use guards instead (composable, testable)
 - **Business logic** - Put it in handlers (where it belongs)
 - **Route-specific behavior** - Keep it in the route definition (explicit is better)
