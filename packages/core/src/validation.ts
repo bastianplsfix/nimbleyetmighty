@@ -1,3 +1,5 @@
+// validation.ts
+
 // Validation error with path and message
 export interface ValidationError {
   path: string[];
@@ -31,6 +33,14 @@ export interface OutputConfig<TBody = unknown> {
 
 // Generic schema type - any validation library schema
 export type Schema<T = unknown> = unknown;
+
+// Utility type to infer the output type from a schema
+// Works with Zod, Valibot, and other validation libraries that have an _output or output property
+export type InferSchema<T> = T extends { _output: infer O } ? O
+  : T extends { _def: { typeName: any }; _output: infer O } ? O
+  : T extends { output: infer O } ? O
+  : T extends { parse: (data: any) => infer O } ? O
+  : unknown;
 
 // Pluggable validator adapter interface
 export interface ValidatorAdapter {

@@ -850,6 +850,16 @@ This creates a framework where the request lifecycle is deterministic and readab
 
 Nimble provides pluggable request validation with full TypeScript support. Validation follows the same explicit `ok` pattern used throughout the framework.
 
+**Key guarantees:**
+- **Guards always run**, even if validation fails
+- **Guards can deny unauthenticated requests** even when input is invalid
+- **Validation errors are only returned if the handler chooses** to return them
+
+**Execution flow:**
+```
+Request → onRequest → Router → Validation → Guards → Handler → onResponse → Response
+```
+
 ### Quick Start
 
 **1. Create a validator adapter** (copy-paste, you own it):
@@ -887,6 +897,9 @@ const app = setupNimble({
 **3. Use validation in routes:**
 
 ```ts
+import { route, setupNimble } from "@bastianplsfix/nimble";
+import { z } from "zod";
+
 route.post("/users", {
   input: {
     body: z.object({
@@ -902,16 +915,18 @@ route.post("/users", {
       };
     }
 
-    // input.body is now typed and validated
-    const user = createUser(input.body);
-    return { ok: true, response: Response.json(user, { status: 201 }) };
+    // input.body is fully typed with autocomplete!
+    const { name, email } = input.body;
+    return { ok: true, response: Response.json({ name, email }, { status: 201 }) };
   },
 });
 ```
 
+**Note:** TypeScript automatically infers types from your validation schemas, providing full autocomplete for `input.body`, `input.query`, and `input.params`.
+
 ### Validation Sources
 
-Validate `body`, `query`, and `params` independently or together:
+Validate `body`, `query`, and `params` independently or together. **Nimble aggregates errors across all sources** (no fail-fast).
 
 ```ts
 route.put("/users/:id", {
@@ -922,6 +937,7 @@ route.put("/users/:id", {
   },
   resolve: ({ input }) => {
     if (!input.ok) {
+      // Errors may come from params, query, and/or body
       return {
         ok: false,
         response: Response.json({ errors: input.errors }, { status: 400 }),
@@ -929,8 +945,9 @@ route.put("/users/:id", {
     }
 
     // All three are typed and validated
-    const user = updateUser(input.params.id, input.body);
-    if (input.query.notify) {
+    const { id, name, notify } = input.params, input.body, input.query;
+    const user = updateUser(id, name);
+    if (notify) {
       sendNotification(user);
     }
 
@@ -938,6 +955,18 @@ route.put("/users/:id", {
   },
 });
 ```
+
+**Data extraction rules:**
+- **Params**: Raw string values from URL pattern match
+- **Query**: String or string[] values from URLSearchParams
+  - Single occurrence: `?page=1` → `{ page: "1" }`
+  - Repeated keys: `?tag=a&tag=b` → `{ tag: ["a", "b"] }`
+- **Body**: Parsed based on Content-Type header
+  - `application/json` → JSON
+  - `application/x-www-form-urlencoded` → form
+  - `multipart/form-data` → form
+  - `text/*` → text
+  - Unknown/missing → text (fallback)
 
 ### Validator Adapters
 
@@ -996,11 +1025,14 @@ const customAdapter: ValidatorAdapter = {
 ### Key Features
 
 - **Explicit validation** — `input.ok` makes validation state clear
+- **Guards always run** — Authentication checks happen even with invalid input
+- **Error aggregation** — Collects all validation errors (no fail-fast)
 - **Pluggable validators** — Works with Zod, Valibot, Arktype, or custom validators
 - **Multiple sources** — Validate `body`, `query`, and `params` independently or together
 - **Fully typed** — TypeScript inference from your schemas
 - **Copy-paste adapters** — You own the adapter code (10-20 lines), no version lock-in
 - **Zero dependencies** — No peer deps, no version coupling
+- **No automatic responses** — Handlers decide how to handle validation errors
 
 ### Important: Body Consumption
 
@@ -1027,7 +1059,7 @@ route.post("/users", {
 
 ### Validation with Guards
 
-Guards receive the validated input and can make authorization decisions based on it:
+**Guards always run, even if validation fails.** This guarantees that authentication/authorization checks happen before validation errors are exposed.
 
 ```ts
 route.post("/admin", {
@@ -1035,24 +1067,29 @@ route.post("/admin", {
     body: z.object({ action: z.string() }),
   },
   guards: [
-    ({ input }) => {
-      if (!input.ok) {
-        return { deny: Response.json({ error: "Invalid input" }, { status: 400 }) };
+    ({ cookies }) => {
+      // Guard runs even if body is invalid
+      if (!cookies["session_id"]) {
+        return { deny: Response.json({ error: "Unauthorized" }, { status: 401 }) };
       }
-
-      if (input.body.action === "delete") {
-        return { deny: Response.json({ error: "Forbidden" }, { status: 403 }) };
-      }
-
       return { allow: true };
     },
   ],
   resolve: ({ input }) => {
-    // Guards passed, input is valid
-    return { ok: true, response: Response.json({ ok: true }) };
+    if (!input.ok) {
+      return {
+        ok: false,
+        response: Response.json({ errors: input.errors }, { status: 400 }),
+      };
+    }
+
+    const { action } = input.body;
+    return { ok: true, response: Response.json({ action }) };
   },
 });
 ```
+
+**Observable behavior:** If a request has invalid input AND is unauthenticated, the client receives a 401 (from the guard), not a 400 (from validation). This prevents information leakage.
 
 ### Output Schemas (OpenAPI)
 

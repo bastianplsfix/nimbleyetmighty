@@ -43,6 +43,13 @@
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1"
-    ]
+    ],
+    "members": {
+      "example": {
+        "dependencies": [
+          "npm:zod@3.24.1"
+        ]
+      }
+    }
   }
 }

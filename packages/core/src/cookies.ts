@@ -1,3 +1,5 @@
+// cookie.ts
+
 /**
  * Cookie serialization options
  */

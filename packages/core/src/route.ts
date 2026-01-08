@@ -1,4 +1,7 @@
+// route.ts
+
 import type {
+  InferSchema,
   InputConfig,
   OutputConfig,
   ValidatedInput,
@@ -48,7 +51,8 @@ export type GuardFn<TBody = unknown, TQuery = unknown, TParams = unknown> = (
   info: ResolverInfo<TBody, TQuery, TParams>,
 ) => GuardResult | Promise<GuardResult>;
 
-// Route configuration object
+// Route configuration object with type inference
+// If input schemas are provided with types (e.g., Zod), TBody/TQuery/TParams are inferred
 export interface RouteConfig<
   TBody = unknown,
   TQuery = unknown,
@@ -71,77 +75,209 @@ export type Handler = {
   output?: OutputConfig;
 };
 
+// Helper to infer schema types from input config
+type InferInputTypes<T> = T extends {
+  input: {
+    body?: infer B;
+    query?: infer Q;
+    params?: infer P;
+  };
+} ? {
+    body: InferSchema<B>;
+    query: InferSchema<Q>;
+    params: InferSchema<P>;
+  }
+  : { body: unknown; query: unknown; params: unknown };
+
 // Factory methods to create Handler descriptors for each HTTP verb
 export const route = {
-  get: (path: string, config: RouteConfig): Handler => ({
+  get: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "GET",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  head: (path: string, config: RouteConfig): Handler => ({
+  head: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "HEAD",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  post: (path: string, config: RouteConfig): Handler => ({
+  post: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "POST",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  put: (path: string, config: RouteConfig): Handler => ({
+  put: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "PUT",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  patch: (path: string, config: RouteConfig): Handler => ({
+  patch: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "PATCH",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  delete: (path: string, config: RouteConfig): Handler => ({
+  delete: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "DELETE",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  options: (path: string, config: RouteConfig): Handler => ({
+  options: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "OPTIONS",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  all: (path: string, config: RouteConfig): Handler => ({
+  all: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method: "*",
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),
-  on: (method: string, path: string, config: RouteConfig): Handler => ({
+  on: <
+    const TInput extends
+      | { body?: any; query?: any; params?: any }
+      | undefined = undefined,
+  >(
+    method: string,
+    path: string,
+    config:
+      & RouteConfig<
+        TInput extends { body: infer B } ? InferSchema<B> : unknown,
+        TInput extends { query: infer Q } ? InferSchema<Q> : unknown,
+        TInput extends { params: infer P } ? InferSchema<P> : unknown
+      >
+      & { input?: TInput },
+  ): Handler => ({
     method,
     path,
-    handler: config.resolve,
-    guards: config.guards,
+    handler: config.resolve as HandlerFn,
+    guards: config.guards as GuardFn[] | undefined,
     input: config.input,
     output: config.output,
   }),

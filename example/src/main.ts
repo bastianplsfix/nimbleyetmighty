@@ -5,7 +5,7 @@ import {
   setupNimble,
   type ValidatorAdapter,
 } from "@bastianplsfix/nimble";
-import { z } from "npm:zod@3.24.1";
+import { z } from "zod";
 
 // ─────────────────────────────────────────────────────────────
 // Validation Adapter (Zod)
@@ -371,16 +371,21 @@ const app = setupNimble({
         if (!input.ok) {
           return {
             ok: false,
-            response: Response.json({ errors: input.errors }, { status: 400 }),
+            response: Response.json({ errors: input.errors }, {
+              status: 400,
+            }),
           };
         }
+
+        // input.query is now properly typed with autocomplete!
+        const { q, page, limit } = input.query;
 
         return {
           ok: true,
           response: Response.json({
-            query: input.query.q,
-            page: input.query.page,
-            limit: input.query.limit,
+            query: q,
+            page,
+            limit,
             results: [],
           }),
         };

@@ -28,6 +28,7 @@ export {
 
 // Validation
 export {
+  type InferSchema,
   type InputConfig,
   type OutputConfig,
   type Schema,

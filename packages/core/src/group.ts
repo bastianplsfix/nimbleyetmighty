@@ -1,3 +1,5 @@
+// group.ts
+
 import type { GuardFn, Handler } from "./route.ts";
 
 // Type for composable handler groups
