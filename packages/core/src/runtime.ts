@@ -2,6 +2,7 @@
 
 import type { Handler, ResolverInfo } from "./route.ts";
 import { createRouter } from "./router.ts";
+import type { ValidatorAdapter } from "./validation.ts";
 
 // Error context passed to onError handler
 export interface ErrorContext {
@@ -49,6 +50,8 @@ const defaultOnError: OnErrorHandler = (ctx) => {
 export interface NimbleConfig {
   /** Route handlers */
   handlers: Handler[];
+  /** Validator adapter for input validation (optional) */
+  validator?: ValidatorAdapter;
   /** Custom error handler for unexpected exceptions (optional) */
   onError?: OnErrorHandler;
   /** Hook that runs before routing begins (optional) */
@@ -63,13 +66,26 @@ export function setupNimble(
 ) {
   // Support both array of handlers (legacy) and config object
   const handlers = Array.isArray(config) ? config : config.handlers;
+  const validator = Array.isArray(config) ? undefined : config.validator;
   const onError = Array.isArray(config)
     ? defaultOnError
     : (config.onError ?? defaultOnError);
   const onRequest = Array.isArray(config) ? undefined : config.onRequest;
   const onResponse = Array.isArray(config) ? undefined : config.onResponse;
 
-  const router = createRouter(handlers);
+  // Startup validation: check if routes use input schemas without a validator
+  if (!validator) {
+    for (const handler of handlers) {
+      if (handler.input) {
+        throw new Error(
+          `Route "${handler.method} ${handler.path}" has input schema but no validator configured. ` +
+            `Pass a validator to setupNimble({ validator: yourAdapter }).`,
+        );
+      }
+    }
+  }
+
+  const router = createRouter(handlers, validator);
 
   return {
     // Standard fetch signature compatible with Deno.serve / Bun.serve

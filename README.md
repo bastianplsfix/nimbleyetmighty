@@ -846,6 +846,134 @@ This creates a framework where the request lifecycle is deterministic and readab
 
 ---
 
+## Request Validation
+
+Nimble provides pluggable request validation with full TypeScript support. Validation follows the same explicit `ok` pattern used throughout the framework.
+
+### Quick Example
+
+```ts
+import { route, setupNimble, type ValidatorAdapter } from "@bastianplsfix/nimble";
+import { z } from "zod";
+
+// 1. Create a validator adapter (copy-paste, you own it)
+const zodAdapter: ValidatorAdapter = {
+  parse(schema, data) {
+    const result = (schema as z.ZodType).safeParse(data);
+    if (result.success) {
+      return { ok: true, data: result.data };
+    }
+    return {
+      ok: false,
+      errors: result.error.errors.map((e) => ({
+        path: e.path.map(String),
+        message: e.message,
+      })),
+    };
+  },
+};
+
+// 2. Configure Nimble with the validator
+const app = setupNimble({
+  handlers,
+  validator: zodAdapter,
+});
+
+// 3. Use validation in routes
+route.post("/users", {
+  input: {
+    body: z.object({
+      name: z.string().min(1),
+      email: z.string().email(),
+    }),
+  },
+  resolve: ({ input }) => {
+    if (!input.ok) {
+      return {
+        ok: false,
+        response: Response.json({ errors: input.errors }, { status: 400 }),
+      };
+    }
+
+    // input.body is now typed and validated
+    const user = createUser(input.body);
+    return { ok: true, response: Response.json(user, { status: 201 }) };
+  },
+});
+```
+
+### Key Features
+
+- **Explicit validation** — `input.ok` makes validation state clear
+- **Pluggable validators** — Works with Zod, Valibot, Arktype, or custom validators
+- **Multiple sources** — Validate `body`, `query`, and `params` independently or together
+- **Fully typed** — TypeScript inference from your schemas
+- **Copy-paste adapters** — You own the adapter code (10-20 lines), no version lock-in
+
+### Validation Sources
+
+```ts
+route.put("/users/:id", {
+  input: {
+    params: z.object({ id: z.string().uuid() }),
+    query: z.object({ notify: z.coerce.boolean().optional() }),
+    body: z.object({ name: z.string().min(1) }),
+  },
+  resolve: ({ input }) => {
+    if (!input.ok) {
+      return {
+        ok: false,
+        response: Response.json({ errors: input.errors }, { status: 400 }),
+      };
+    }
+
+    // All three are typed and validated
+    const user = updateUser(input.params.id, input.body);
+    if (input.query.notify) {
+      sendNotification(user);
+    }
+
+    return { ok: true, response: Response.json(user) };
+  },
+});
+```
+
+### Important: Body Consumption
+
+When you define `input.body`, the framework parses the request body during validation. **Do not call `request.json()` in your resolver** — the body stream has already been consumed.
+
+```ts
+// ✅ Correct
+route.post("/users", {
+  input: { body: z.object({ name: z.string() }) },
+  resolve: ({ input }) => {
+    if (!input.ok) { /* ... */ }
+    const data = input.body; // Use input.body
+  },
+});
+
+// ❌ Will throw
+route.post("/users", {
+  input: { body: z.object({ name: z.string() }) },
+  resolve: async ({ request }) => {
+    const data = await request.json(); // Body already consumed!
+  },
+});
+```
+
+### Documentation
+
+For complete documentation including:
+- Validator adapter examples (Zod, Valibot, custom)
+- TypeScript usage and type inference
+- Guards with validation
+- Output schemas for OpenAPI
+- Edge cases and best practices
+
+See [VALIDATION.md](./docs/VALIDATION.md)
+
+---
+
 ## License
 
 MIT
