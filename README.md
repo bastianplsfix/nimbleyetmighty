@@ -850,14 +850,15 @@ This creates a framework where the request lifecycle is deterministic and readab
 
 Nimble provides pluggable request validation with full TypeScript support. Validation follows the same explicit `ok` pattern used throughout the framework.
 
-### Quick Example
+### Quick Start
+
+**1. Create a validator adapter** (copy-paste, you own it):
 
 ```ts
-import { route, setupNimble, type ValidatorAdapter } from "@bastianplsfix/nimble";
+import type { ValidatorAdapter } from "@bastianplsfix/nimble";
 import { z } from "zod";
 
-// 1. Create a validator adapter (copy-paste, you own it)
-const zodAdapter: ValidatorAdapter = {
+export const zodAdapter: ValidatorAdapter = {
   parse(schema, data) {
     const result = (schema as z.ZodType).safeParse(data);
     if (result.success) {
@@ -872,14 +873,20 @@ const zodAdapter: ValidatorAdapter = {
     };
   },
 };
+```
 
-// 2. Configure Nimble with the validator
+**2. Configure Nimble with the validator:**
+
+```ts
 const app = setupNimble({
   handlers,
   validator: zodAdapter,
 });
+```
 
-// 3. Use validation in routes
+**3. Use validation in routes:**
+
+```ts
 route.post("/users", {
   input: {
     body: z.object({
@@ -902,15 +909,9 @@ route.post("/users", {
 });
 ```
 
-### Key Features
-
-- **Explicit validation** — `input.ok` makes validation state clear
-- **Pluggable validators** — Works with Zod, Valibot, Arktype, or custom validators
-- **Multiple sources** — Validate `body`, `query`, and `params` independently or together
-- **Fully typed** — TypeScript inference from your schemas
-- **Copy-paste adapters** — You own the adapter code (10-20 lines), no version lock-in
-
 ### Validation Sources
+
+Validate `body`, `query`, and `params` independently or together:
 
 ```ts
 route.put("/users/:id", {
@@ -938,6 +939,69 @@ route.put("/users/:id", {
 });
 ```
 
+### Validator Adapters
+
+**Zod:**
+```ts
+export const zodAdapter: ValidatorAdapter = {
+  parse(schema, data) {
+    const result = (schema as z.ZodType).safeParse(data);
+    if (result.success) return { ok: true, data: result.data };
+    return {
+      ok: false,
+      errors: result.error.errors.map((e) => ({
+        path: e.path.map(String),
+        message: e.message,
+      })),
+    };
+  },
+};
+```
+
+**Valibot:**
+```ts
+export const valibotAdapter: ValidatorAdapter = {
+  parse(schema, data) {
+    const result = v.safeParse(schema as v.BaseSchema, data);
+    if (result.success) return { ok: true, data: result.output };
+    return {
+      ok: false,
+      errors: result.issues.map((issue) => ({
+        path: issue.path?.map((p) => String(p.key)) ?? [],
+        message: issue.message,
+      })),
+    };
+  },
+};
+```
+
+**Custom:**
+```ts
+const customAdapter: ValidatorAdapter = {
+  parse(schema, data) {
+    const validate = schema as (data: unknown) => { valid: boolean; errors?: string[] };
+    const result = validate(data);
+    if (result.valid) return { ok: true, data };
+    return {
+      ok: false,
+      errors: (result.errors ?? ["Validation failed"]).map((msg) => ({
+        path: [],
+        message: msg,
+      })),
+    };
+  },
+};
+```
+
+### Key Features
+
+- **Explicit validation** — `input.ok` makes validation state clear
+- **Pluggable validators** — Works with Zod, Valibot, Arktype, or custom validators
+- **Multiple sources** — Validate `body`, `query`, and `params` independently or together
+- **Fully typed** — TypeScript inference from your schemas
+- **Copy-paste adapters** — You own the adapter code (10-20 lines), no version lock-in
+- **Zero dependencies** — No peer deps, no version coupling
+
 ### Important: Body Consumption
 
 When you define `input.body`, the framework parses the request body during validation. **Do not call `request.json()` in your resolver** — the body stream has already been consumed.
@@ -961,16 +1025,90 @@ route.post("/users", {
 });
 ```
 
-### Documentation
+### Validation with Guards
 
-For complete documentation including:
-- Validator adapter examples (Zod, Valibot, custom)
-- TypeScript usage and type inference
-- Guards with validation
-- Output schemas for OpenAPI
-- Edge cases and best practices
+Guards receive the validated input and can make authorization decisions based on it:
 
-See [VALIDATION.md](./docs/VALIDATION.md)
+```ts
+route.post("/admin", {
+  input: {
+    body: z.object({ action: z.string() }),
+  },
+  guards: [
+    ({ input }) => {
+      if (!input.ok) {
+        return { deny: Response.json({ error: "Invalid input" }, { status: 400 }) };
+      }
+
+      if (input.body.action === "delete") {
+        return { deny: Response.json({ error: "Forbidden" }, { status: 403 }) };
+      }
+
+      return { allow: true };
+    },
+  ],
+  resolve: ({ input }) => {
+    // Guards passed, input is valid
+    return { ok: true, response: Response.json({ ok: true }) };
+  },
+});
+```
+
+### Output Schemas (OpenAPI)
+
+The `output` config is used for OpenAPI generation only—it is **not validated at runtime**:
+
+```ts
+route.get("/users/:id", {
+  input: {
+    params: z.object({ id: z.string().uuid() }),
+  },
+  output: {
+    body: z.object({
+      id: z.string().uuid(),
+      name: z.string(),
+      email: z.string().email(),
+    }),
+  },
+  resolve: ({ input }) => {
+    if (!input.ok) { /* ... */ }
+    const user = findUser(input.params.id);
+    // Output schema used for docs, not runtime validated
+    return { ok: true, response: Response.json(user) };
+  },
+});
+```
+
+**Why no runtime validation?** Runtime output validation creates an unsolvable problem—what to do when it fails? Return 500 for a working response? Log and return anyway? Trust TypeScript + tests for output correctness.
+
+### Types
+
+```ts
+interface ValidationError {
+  path: string[];
+  message: string;
+}
+
+type ValidatedInput<TBody, TQuery, TParams> =
+  | { ok: true; body: TBody; query: TQuery; params: TParams }
+  | { ok: false; errors: ValidationError[] };
+
+interface InputConfig<TBody, TQuery, TParams> {
+  body?: Schema<TBody>;
+  query?: Schema<TQuery>;
+  params?: Schema<TParams>;
+}
+
+interface OutputConfig<TBody> {
+  body?: Schema<TBody>;
+}
+
+interface ValidatorAdapter {
+  parse(schema: unknown, data: unknown):
+    | { ok: true; data: unknown }
+    | { ok: false; errors: ValidationError[] };
+}
+```
 
 ---
 
