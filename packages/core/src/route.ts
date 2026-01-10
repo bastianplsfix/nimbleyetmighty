@@ -1,23 +1,23 @@
 // Path parameters extracted from URL (e.g., { id: "123" })
 export type RouteParams = Record<string, string | undefined>;
 
-// Schema interface - must have safeParse method
+// Schema interface - must have safeParse method (compatible with Zod and similar libraries)
 export interface Schema<T = unknown> {
   safeParse(data: unknown): SafeParseResult<T>;
 }
 
-// SafeParse result types
+// SafeParse result types (flexible to support Zod and other validation libraries)
 export type SafeParseResult<T> =
   | { success: true; data: T }
   | {
     success: false;
-    error: { issues: Array<{ path: (string | number)[]; message: string }> };
+    error: { issues: Array<{ path: unknown; message: string }> };
   };
 
 // Validation issue
 export interface ValidationIssue {
   part: "params" | "query" | "body";
-  path: (string | number)[];
+  path: unknown;
   message: string;
 }
 

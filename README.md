@@ -1,61 +1,219 @@
-# Nimble Framework – Final Model
+# Nimble
 
-Nimble is a minimal web framework built directly on the Fetch API (`Request` / `Response`).
+> **A minimal, explicit web framework built on Web Standards.**
 
-Core rule:
+Nimble is designed around one core idea:
 
 > **The framework describes facts.
-> The handler decides the HTTP response.**
+> You decide what HTTP means.**
 
-Nimble never invents responses.
-If a request ends, it’s because **you explicitly returned a `Response`**
-or a guard denied it.
+No hidden control flow.
+No magic responses.
+No implicit error handling.
+
+If a request ends, it’s because **you returned a `Response`**
+or a **guard explicitly denied it.**
 
 ---
 
-# Request lifecycle
+# Philosophy
 
-Single-phase pipeline:
+Nimble is built for:
+
+* Learnability
+* Explicit control flow
+* Deterministic behavior
+* Web platform first (Fetch API)
+* Edge compatibility (Deno, Bun, Workers)
+
+### Design laws
+
+1. **One decision boundary**
+   Only handlers and guards can end a request.
+
+2. **No hidden branching**
+   Nothing auto-returns 400/401/403 for you.
+
+3. **Facts before decisions**
+   The framework computes:
+
+   * raw inputs
+   * validation results
+   * guard facts
+     You decide what they mean.
+
+4. **Errors are responses**
+   Expected failures are returned explicitly.
+
+5. **Unexpected failures throw**
+   Bugs go to one error boundary.
+
+---
+
+# High-level lifecycle
 
 ```
 Request
-→ onRequest (adds locals only)
-→ Route match
-→ Extract raw inputs
-→ Parse body (if needed)
-→ Validate (manual)
-→ Guards (allow / deny)
-→ Handler
-→ Return Response
-→ Catch unexpected throws → 500
+   ↓
+onRequest (locals only)
+   ↓
+Route match
+   ↓
+Extract raw inputs
+   ↓
+Parse body (if needed)
+   ↓
+Validate (manual)
+   ↓
+Guards (allow / deny)
+   ↓
+Handler (returns Response)
+   ↓
+onResponse
+   ↓
+Response
 ```
 
 ---
 
-# 1) Routing
+# Mental model
 
-* Uses `URLPattern`
-* Matched by method + pattern
-* No match → framework returns `404`
+```
+Facts → Gates → Decision
+```
+
+* **Facts**
+
+  * `c.raw`
+  * `c.input`
+  * `c.locals`
+
+* **Gates**
+
+  * guards (allow / deny)
+
+* **Decision**
+
+  * handler returns Response
 
 ---
 
-# 2) Context (`c`)
+# Installation
+
+```bash
+npm install @nimble/core
+```
+
+---
+
+# Basic example
 
 ```ts
-c.req     // native Request (source of truth)
-c.raw     // extracted, unvalidated values
-c.input   // validation gate
-c.locals  // accumulated facts (from onRequest + guards)
+import { setupNimble, route } from "@nimble/core";
+
+const app = setupNimble({
+  routes: [
+    route.get("/hello", {
+      resolve: () => new Response("Hello world"),
+    }),
+  ],
+});
+
+Deno.serve(app);
 ```
 
-No duplicated primitives:
+---
 
-* ❌ no `c.headers`
-* ❌ no `c.method`
-* ❌ no `c.url`
+# Core API
 
-Use:
+## `setupNimble()`
+
+```ts
+const handler = setupNimble({
+  routes,
+  onRequest?,
+  onResponse?,
+  onError?,
+});
+```
+
+### Options
+
+| Name         | Type                         | Description           |
+| ------------ | ---------------------------- | --------------------- |
+| `routes`     | `Route[]`                    | All registered routes |
+| `onRequest`  | `(c) => void \| LocalsPatch` | Runs before routing   |
+| `onResponse` | `(c, res) => Response`       | Runs before returning |
+| `onError`    | `(err, c) => Response`       | Global error handler  |
+
+Returns:
+
+```ts
+(req: Request) => Promise<Response>
+```
+
+Compatible with:
+
+* Deno
+* Bun
+* Cloudflare Workers
+* Node (fetch runtimes)
+
+---
+
+# Routing
+
+```ts
+route.get(path, config)
+route.head(path, config)
+route.post(path, config)
+route.put(path, config)
+route.patch(path, config)
+route.delete(path, config)
+route.options(path, config)
+route.all(path, config)
+route.on(method, path, config)
+```
+
+Routes use **URLPattern**.
+
+If no route matches → framework returns `404`.
+
+---
+
+# RouteConfig
+
+```ts
+interface RouteConfig {
+  request?: {
+    params?: Schema
+    query?: Schema
+    body?: Schema
+  }
+
+  guards?: GuardFn[]
+
+  resolve: Resolver
+}
+```
+
+---
+
+# Context (`c`)
+
+```ts
+interface Context {
+  req: Request
+  raw: RawInput
+  input: InputState
+  locals: Record<string, unknown>
+}
+```
+
+### Important rules
+
+* Nimble does **not** duplicate HTTP primitives
+  Use:
 
 ```ts
 c.req.headers
@@ -63,21 +221,29 @@ c.req.method
 new URL(c.req.url)
 ```
 
+No:
+
+* `c.headers`
+* `c.method`
+* `c.url`
+
 ---
 
-# 3) Raw inputs (`c.raw`)
-
-Framework-extracted convenience values (NOT trusted):
+# Raw inputs (`c.raw`)
 
 ```ts
-c.raw = {
-  params, // URLPattern params (strings)
-  query,  // URLSearchParams → object
-  body?,  // parsed JSON (only if parsed)
+interface RawInput {
+  params: Record<string, string>
+  query: Record<string, string | string[]>
+  body?: unknown
 }
 ```
 
-Query rules:
+* Extracted by framework
+* **Never trusted**
+* Only convenience
+
+### Query parsing
 
 ```
 ?tag=a&tag=b&limit=10
@@ -86,19 +252,21 @@ Query rules:
 
 ---
 
-# 4) Body handling
+# Body handling
 
-> **Body is read at most once**
+> **Request body is read at most once**
+
+Rules:
 
 * If `request.body` exists:
 
   * Nimble parses JSON once
   * Cached to `c.raw.body`
-  * User must NOT call `req.json()`
+  * Do NOT call `req.json()`
 
-* If not:
+* If no `request.body`:
 
-  * Nimble does not touch body
+  * Framework does not touch body
   * User may parse manually
 
 Invalid JSON:
@@ -108,9 +276,9 @@ Invalid JSON:
 
 ---
 
-# 5) Built-in validation (always manual)
+# Validation (always manual)
 
-Routes may define:
+Routes may define schemas:
 
 ```ts
 request: {
@@ -120,49 +288,55 @@ request: {
 }
 ```
 
-Schemas use:
+Schema contract:
 
 ```ts
-schema.safeParse(...)
-```
-
-Validation:
-
-* never throws
-* never returns a response
-* only computes facts
-
-Result stored in:
-
-```ts
-c.input
-```
-
-### Shape
-
-Success:
-
-```ts
-{
-  ok: true,
-  params,
-  query,
-  body
+interface Schema<T> {
+  safeParse(input: unknown):
+    | { success: true; data: T }
+    | { success: false; error: unknown }
 }
 ```
 
-Failure:
+Works with:
+
+* Zod
+* Valibot
+* custom validators
+
+---
+
+## Validation result: `c.input`
 
 ```ts
-{
-  ok: false,
-  failed: ["params" | "query" | "body"],
-  issues: [{ part, path, message }],
-  raw: { params?, query?, body? }
+type InputState =
+  | {
+      ok: true
+      params: unknown
+      query: unknown
+      body: unknown
+    }
+  | {
+      ok: false
+      failed: ("params" | "query" | "body")[]
+      issues: ValidationIssue[]
+      raw: {
+        params?: unknown
+        query?: unknown
+        body?: unknown
+      }
+    }
+```
+
+```ts
+interface ValidationIssue {
+  part: "params" | "query" | "body"
+  path: string[]
+  message: string
 }
 ```
 
-### Access rule
+### Rule
 
 If:
 
@@ -173,41 +347,11 @@ c.input.ok === false
 Then:
 
 * ❌ no validated values exist
-* ✅ only issues + metadata
+* ✅ only `issues`, `failed`, `raw`
 
 ---
 
-# 6) onRequest (locals-only hook)
-
-`onRequest` runs **before routing**.
-
-Rules:
-
-* Cannot deny
-* Cannot return a Response
-* May only return a locals patch
-
-```ts
-onRequest: (c) => {
-  return { requestId: crypto.randomUUID() }
-}
-```
-
-Framework merges immutably:
-
-```ts
-c.locals = { ...c.locals, ...patch }
-```
-
-Use for:
-
-* request IDs
-* timing
-* logging context
-
----
-
-# 7) Guards (allow / deny + locals)
+# Guards
 
 Guards are **pure request gates**.
 
@@ -215,31 +359,62 @@ Guards are **pure request gates**.
 type GuardResult =
   | { allow: true; locals?: object }
   | { deny: Response }
+
+type GuardFn = (c: Context) =>
+  GuardResult | Promise<GuardResult>
 ```
 
-Execution:
+### Behavior
 
 * Guards run in order
-* First deny short-circuits
+* First `deny` short-circuits
 * Allows may attach locals
 
-Merge rule:
+### Example
 
 ```ts
-c.locals = { ...c.locals, ...patch }
+const requireAuth: GuardFn = async (c) => {
+  const token = c.req.headers.get("authorization");
+  if (!token) {
+    return { deny: new Response("Unauthorized", { status: 401 }) };
+  }
+
+  const user = await verify(token);
+  return { allow: true, locals: { user } };
+};
 ```
-
-Guards remain:
-
-* deterministic
-* immutable
-* edge-friendly
 
 ---
 
-# 8) group()
+# Locals (`c.locals`)
 
-Groups are **compile-time helpers** for guard composition.
+* Request-scoped facts
+* Immutable merge
+* Provided by:
+
+  * `onRequest`
+  * guards
+
+Good for:
+
+* user
+* tenant
+* requestId
+* feature flags
+
+Avoid:
+
+* Node buffers
+* DB clients
+* large payloads
+
+> Locals are **facts**, not services.
+
+---
+
+# group()
+
+Groups compose guards **at build time**.
 
 ```ts
 group({
@@ -248,9 +423,7 @@ group({
 })
 ```
 
-### Behavior
-
-For every route in `handlers`:
+Behavior:
 
 ```ts
 final.guards = [
@@ -259,14 +432,12 @@ final.guards = [
 ]
 ```
 
-No prefixing.
 No runtime behavior.
-Just guard composition.
 
 ### Example
 
 ```ts
-const protectedRoutes = group({
+const apiRoutes = group({
   guards: [requireAuth],
   handlers: [
     route.get("/me", { resolve: ... }),
@@ -275,18 +446,7 @@ const protectedRoutes = group({
 });
 ```
 
-Use:
-
-```ts
-setupNimble({
-  routes: [
-    route.get("/", ...),
-    ...protectedRoutes
-  ]
-});
-```
-
-### Nested groups
+Nested:
 
 ```ts
 group({
@@ -302,325 +462,170 @@ group({
 });
 ```
 
-Resulting guard order:
+---
 
+# onRequest hook
+
+Runs **before routing**.
+
+Rules:
+
+* Cannot deny
+* Cannot return Response
+* May only return locals patch
+
+```ts
+onRequest: () => ({
+  requestId: crypto.randomUUID(),
+  startedAt: Date.now(),
+})
 ```
-requireAuth → requireAdmin → route guards
-```
+
+Merged immutably into `c.locals`.
+
+Use for:
+
+* request IDs
+* timing
+* logging context
 
 ---
 
-# 9) Handler (resolver)
+# onResponse hook
+
+Runs after handler/guard returns Response.
 
 ```ts
-resolve: (c) => Response | Promise<Response>
-```
+onResponse(c, res) {
+  const headers = new Headers(res.headers);
+  headers.set("x-request-id", String(c.locals.requestId));
 
-Typical pattern:
-
-```ts
-if (!c.input.ok) {
-  return Response.json(
-    { error: { message: "Bad input", issues: c.input.issues } },
-    { status: 400 }
-  );
+  return new Response(res.body, {
+    status: res.status,
+    headers,
+  });
 }
 ```
 
-No magic:
-
-* no thrown control flow
-* no auto 400s
-
 ---
 
-# 10) Error boundary
+# onError hook
 
-Thrown errors mean:
+Catches **unexpected throws**.
 
-> **Unexpected failure**
-
-Nimble:
-
-* catches all throws
-* calls `onError(error, c)`
-* otherwise returns `500`
+```ts
+onError(error, c) {
+  console.error(error);
+  return new Response("Internal Server Error", { status: 500 });
+}
+```
 
 Expected failures:
 
 * validation
 * auth
 * domain rules
-  → **explicit Responses**
+  → **must be returned explicitly**
 
 ---
 
-# 11) Ownership of outcomes
+# Error model
 
-### Framework
+| Type       | Handling        |
+| ---------- | --------------- |
+| Expected   | Return Response |
+| Unexpected | Throw → onError |
 
-* No route → 404
-* Uncaught throw → 500
-
-### User
-
-* Validation errors
-* Auth failures
-* Domain failures
-* Success responses
-* All HTTP semantics
+No exception-based control flow.
 
 ---
 
-# Mental model
+# Guard flow diagram
 
 ```
-Request
-   ↓
-onRequest adds locals
-   ↓
-Nimble extracts facts
-   ↓
-c.raw   (unsafe)
-c.input (validated gate)
-c.locals (facts)
-   ↓
-Guards allow / deny
-   ↓
-Handler commits HTTP reality
+Guard #1 → allow + locals
+        ↓
+Guard #2 → allow
+        ↓
+Guard #3 → deny → Response returned
 ```
-
----
-
-# Philosophy
-
-* No hidden control flow
-* No magic responses
-* Guards decide denial
-* Handlers decide HTTP
-* Web standards first
-
-> **Nimble never decides what HTTP means.
-> It only describes what happened.
-> You commit reality.**
-
-
-# High-level request lifecycle
-
-```
-┌──────────┐
-│ Request  │
-└────┬─────┘
-     │
-     ▼
-┌───────────────────┐
-│ onRequest hook    │  (locals only)
-└────┬──────────────┘
-     │
-     ▼
-┌───────────────────┐
-│ Route matching    │
-│ (URLPattern)      │
-└────┬──────────────┘
-     │
-     ▼
-┌───────────────────┐
-│ Extract raw       │
-│ - params          │
-│ - query           │
-└────┬──────────────┘
-     │
-     ▼
-┌───────────────────┐
-│ Parse body        │
-│ (only if schema)  │
-└────┬──────────────┘
-     │
-     ▼
-┌───────────────────┐
-│ Validate (manual) │
-│ → compute c.input │
-└────┬──────────────┘
-     │
-     ▼
-┌───────────────────┐
-│ Guards            │
-│ allow / deny      │
-└────┬──────────────┘
-     │
-     ▼
-┌───────────────────┐
-│ Handler           │
-│ returns Response  │
-└────┬──────────────┘
-     │
-     ▼
-┌───────────────────┐
-│ onResponse hook   │
-└────┬──────────────┘
-     │
-     ▼
-┌──────────┐
-│ Response │
-└──────────┘
-```
-
----
-
-# Guard flow (with locals)
-
-```
-Guards (ordered)
-
-┌──────────────┐
-│ Guard #1     │
-│ allow + user │
-└────┬─────────┘
-     │ locals merged
-     ▼
-┌──────────────┐
-│ Guard #2     │
-│ allow        │
-└────┬─────────┘
-     │
-     ▼
-┌──────────────┐
-│ Guard #3     │
-│ deny → 403   │───▶ Response returned immediately
-└──────────────┘
-```
-
-**Rules**
-
-* Guards run in order
-* First `deny` short-circuits
-* `locals` accumulate immutably
 
 ---
 
 # Validation flow
 
 ```
-request schema exists?
-        │
-        ▼
-┌────────────────┐
-│ Validate parts │
-│ params/query   │
-│ body (json)    │
-└────┬───────────┘
-     │
-     ▼
-┌────────────────────────┐
-│ c.input computed       │
-│                        │
-│ ok === true            │
-│   → safe values        │
-│                        │
-│ ok === false           │
-│   → issues only        │
-└─────────┬──────────────┘
-          │
-          ▼
-   Handler decides
+Schemas exist?
+     ↓
+safeParse each
+     ↓
+c.input computed
+     ↓
+Handler decides
 ```
-
-**Important**
-
-* Validation **never returns a response**
-* Handler must explicitly handle `!c.input.ok`
 
 ---
 
-# Error flow
-
-```
-Anything throws?
-       │
-       ▼
-┌───────────────────┐
-│ onError hook      │
-│ returns Response  │
-└────┬──────────────┘
-     │
-     ▼
-┌──────────┐
-│ Response │
-└──────────┘
-```
-
-* Throws = **unexpected failures**
-* Validation / auth are **not throws**
-* All expected errors = explicit Responses
-
----
-
-# Group composition (compile-time)
-
-```
-group({
-  guards: [A, B],
-  handlers: [
-    route X (guards: [C]),
-    route Y
-  ]
-})
-
-Produces:
-
-Route X guards → [A, B, C]
-Route Y guards → [A, B]
-```
-
-No runtime behavior.
-Just static composition.
-
----
-
-# Full mental model diagram
+# Full lifecycle diagram
 
 ```
 Request
-   │
-   ▼
+   ↓
 onRequest
-(add locals)
-   │
-   ▼
+   ↓
 Route match
-   │
-   ▼
+   ↓
 Extract raw
-   │
-   ▼
-Parse body (if needed)
-   │
-   ▼
-Validate → c.input
-   │
-   ▼
+   ↓
+Parse body
+   ↓
+Validate
+   ↓
 Guards
-(allow / deny + locals)
-   │
-   ▼
+   ↓
 Handler
-(return Response)
-   │
-   ▼
+   ↓
 onResponse
-   │
-   ▼
+   ↓
 Response
 ```
 
 ---
 
-# One-line summary diagram
+# What Nimble decides
 
-```
-Facts → Gates → Decision
-```
+* 404 if no route matches
+* 500 on uncaught throw
 
-* Facts = raw + input + locals
-* Gates = guards
-* Decision = handler
+# What YOU decide
+
+* 400 validation errors
+* 401 / 403 auth
+* 409 conflicts
+* 200/201 success
+* all HTTP semantics
+
+---
+
+# Why Nimble
+
+* Teaches real HTTP
+* Makes control flow visible
+* Encourages good architecture
+* Edge-native
+* Minimal surface area
+
+---
+
+# Summary
+
+Nimble is:
+
+* explicit
+* deterministic
+* platform-first
+* small
+
+> **Nimble never decides what HTTP means.
+> It only describes what happened.
+> You commit reality.**
