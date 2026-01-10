@@ -63,23 +63,25 @@ Deno.test("setupNimble.fetch returns 404 for unmatched method", async () => {
   assertEquals(res.status, 404);
 });
 
-Deno.test("setupNimble.fetch handler receives request", async () => {
+Deno.test("setupNimble.fetch handler receives request and body", async () => {
   const app = setupNimble([
     route.post("/echo", {
-      resolve: async (c) => {
-        const body = await c.req.text();
-        return new Response(body);
+      resolve: (c) => {
+        // Body is already parsed to c.raw.body
+        const body = c.raw.body as { message: string };
+        return Response.json(body);
       },
     }),
   ]);
 
   const req = new Request("http://localhost/echo", {
     method: "POST",
-    body: "test body",
+    body: JSON.stringify({ message: "test body" }),
+    headers: { "Content-Type": "application/json" },
   });
   const res = await app.fetch(req);
 
-  assertEquals(await res.text(), "test body");
+  assertEquals(await res.json(), { message: "test body" });
 });
 
 Deno.test("setupNimble.fetch matches HEAD route", async () => {

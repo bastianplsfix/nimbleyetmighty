@@ -1,5 +1,10 @@
 import type { Handler, RouteParams } from "./route.ts";
 import { parseCookies } from "./cookies.ts";
+import {
+  parseBody,
+  parseQuery,
+  validateInputs,
+} from "./internal/validation.ts";
 
 interface CompiledRoute {
   handler: Handler;
@@ -45,14 +50,30 @@ export function createRouter(handlers: Handler[]) {
         return new Response("Not Found", { status: 404 });
       }
 
+      // Extract raw values
       const cookies = parseCookies(req.headers.get("cookie"));
+      const query = parseQuery(req.url);
+      const body = await parseBody(req);
+
+      // Perform validation if schemas are defined
+      const input = validateInputs(
+        matched.handler.request,
+        {
+          params: matched.params,
+          query,
+          body,
+        },
+      );
 
       const context = {
         req,
         raw: {
           params: matched.params,
+          query,
           cookies,
+          body,
         },
+        input,
         locals: {},
       };
 
