@@ -305,3 +305,58 @@ Deno.test("validation: c.input.raw contains raw values on failure", async () => 
   assertEquals(json.rawParams, { id: "123" });
   assertEquals(json.failed, ["params"]);
 });
+
+Deno.test("validation: body not parsed when no body schema", async () => {
+  const app = setupNimble([
+    route.post("/data", {
+      // No body schema defined
+      resolve: (c) => {
+        // Body should be undefined since no schema was defined
+        return Response.json({ hasBody: c.raw.body !== undefined });
+      },
+    }),
+  ]);
+
+  const res = await app.fetch(
+    new Request("http://localhost/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: "test" }),
+    }),
+  );
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { hasBody: false });
+});
+
+Deno.test("validation: body parsed when body schema defined", async () => {
+  const bodySchema = createSchema((data: unknown) => {
+    return data; // Accept anything
+  });
+
+  const app = setupNimble([
+    route.post("/data", {
+      request: {
+        body: bodySchema,
+      },
+      resolve: (c) => {
+        // Body should be parsed since schema is defined
+        return Response.json({
+          hasBody: c.raw.body !== undefined,
+          bodyData: c.raw.body,
+        });
+      },
+    }),
+  ]);
+
+  const res = await app.fetch(
+    new Request("http://localhost/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: "test" }),
+    }),
+  );
+  assertEquals(res.status, 200);
+  const json = await res.json();
+  assertEquals(json.hasBody, true);
+  assertEquals(json.bodyData, { data: "test" });
+});

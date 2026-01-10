@@ -16,7 +16,15 @@ export interface RouteMatch {
   params: RouteParams;
 }
 
-export function createRouter(handlers: Handler[]) {
+export interface Router {
+  match: (method: string, url: string) => RouteMatch | null;
+  handle: (
+    req: Request,
+    initialLocals?: Record<string, unknown>,
+  ) => Promise<Response>;
+}
+
+export function createRouter(handlers: Handler[]): Router {
   const routes: CompiledRoute[] = handlers.map((h) => ({
     handler: h,
     pattern: new URLPattern({ pathname: h.path }),
@@ -44,7 +52,10 @@ export function createRouter(handlers: Handler[]) {
 
   return {
     match,
-    handle: async (req: Request): Promise<Response> => {
+    handle: async (
+      req: Request,
+      initialLocals: Record<string, unknown> = {},
+    ): Promise<Response> => {
       const matched = match(req.method, req.url);
       if (!matched) {
         return new Response("Not Found", { status: 404 });
@@ -53,7 +64,11 @@ export function createRouter(handlers: Handler[]) {
       // Extract raw values
       const cookies = parseCookies(req.headers.get("cookie"));
       const query = parseQuery(req.url);
-      const body = await parseBody(req);
+
+      // Only parse body if a body schema is defined
+      const body = matched.handler.request?.body
+        ? await parseBody(req)
+        : undefined;
 
       // Perform validation if schemas are defined
       const input = validateInputs(
@@ -74,7 +89,7 @@ export function createRouter(handlers: Handler[]) {
           body,
         },
         input,
-        locals: {},
+        locals: { ...initialLocals },
       };
 
       // Execute guards in order

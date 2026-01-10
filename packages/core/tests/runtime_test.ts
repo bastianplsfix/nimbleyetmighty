@@ -64,10 +64,18 @@ Deno.test("setupNimble.fetch returns 404 for unmatched method", async () => {
 });
 
 Deno.test("setupNimble.fetch handler receives request and body", async () => {
+  // Simple schema that accepts anything
+  const bodySchema = {
+    safeParse: (data: unknown) => ({ success: true as const, data }),
+  };
+
   const app = setupNimble([
     route.post("/echo", {
+      request: {
+        body: bodySchema,
+      },
       resolve: (c) => {
-        // Body is already parsed to c.raw.body
+        // Body is already parsed to c.raw.body when schema is defined
         const body = c.raw.body as { message: string };
         return Response.json(body);
       },
