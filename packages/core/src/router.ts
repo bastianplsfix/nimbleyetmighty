@@ -72,10 +72,7 @@ export function createRouter(handlers: Handler[]) {
       }
 
       // All guards passed, execute the handler
-      const result = await matched.handler.handler(context);
-
-      // Extract the response from ResolveResult
-      return result.response;
+      return await matched.handler.handler(context);
     },
   };
 }

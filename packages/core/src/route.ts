@@ -19,18 +19,10 @@ export interface Context {
   locals: Record<string, unknown>;
 }
 
-// Result type that makes semantic intent explicit
-// ok: true = semantically successful (2xx, 3xx redirects)
-// ok: false = expected error (4xx validation, missing resources, domain constraints)
-export type ResolveResult =
-  | { ok: true; response: Response }
-  | { ok: false; response: Response };
-
 // Function signature for route handlers
-// Handlers must return ResolveResult to make semantic intent explicit
 export type HandlerFn = (
   c: Context,
-) => ResolveResult | Promise<ResolveResult>;
+) => Response | Promise<Response>;
 
 // Guard result types
 export type GuardResult =

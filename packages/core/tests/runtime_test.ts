@@ -11,7 +11,7 @@ Deno.test("setupNimble returns object with fetch method", () => {
 Deno.test("setupNimble.fetch matches GET route", async () => {
   const app = setupNimble([
     route.get("/hello", {
-      resolve: () => ({ ok: true, response: new Response("Hello World") }),
+      resolve: () => new Response("Hello World"),
     }),
   ]);
 
@@ -25,7 +25,7 @@ Deno.test("setupNimble.fetch matches GET route", async () => {
 Deno.test("setupNimble.fetch matches POST route", async () => {
   const app = setupNimble([
     route.post("/data", {
-      resolve: () => ({ ok: true, response: new Response("Posted") }),
+      resolve: () => new Response("Posted"),
     }),
   ]);
 
@@ -39,7 +39,7 @@ Deno.test("setupNimble.fetch matches POST route", async () => {
 Deno.test("setupNimble.fetch returns 404 for unmatched path", async () => {
   const app = setupNimble([
     route.get("/exists", {
-      resolve: () => ({ ok: true, response: new Response("OK") }),
+      resolve: () => new Response("OK"),
     }),
   ]);
 
@@ -53,7 +53,7 @@ Deno.test("setupNimble.fetch returns 404 for unmatched path", async () => {
 Deno.test("setupNimble.fetch returns 404 for unmatched method", async () => {
   const app = setupNimble([
     route.get("/test", {
-      resolve: () => ({ ok: true, response: new Response("OK") }),
+      resolve: () => new Response("OK"),
     }),
   ]);
 
@@ -68,7 +68,7 @@ Deno.test("setupNimble.fetch handler receives request", async () => {
     route.post("/echo", {
       resolve: async (c) => {
         const body = await c.req.text();
-        return { ok: true, response: new Response(body) };
+        return new Response(body);
       },
     }),
   ]);
@@ -85,12 +85,10 @@ Deno.test("setupNimble.fetch handler receives request", async () => {
 Deno.test("setupNimble.fetch matches HEAD route", async () => {
   const app = setupNimble([
     route.head("/resource", {
-      resolve: () => ({
-        ok: true,
-        response: new Response(null, {
+      resolve: () =>
+        new Response(null, {
           headers: { "Content-Length": "100" },
         }),
-      }),
     }),
   ]);
 
@@ -104,7 +102,7 @@ Deno.test("setupNimble.fetch matches HEAD route", async () => {
 Deno.test("setupNimble.fetch matches PATCH route", async () => {
   const app = setupNimble([
     route.patch("/users/1", {
-      resolve: () => ({ ok: true, response: new Response("Patched") }),
+      resolve: () => new Response("Patched"),
     }),
   ]);
 
@@ -118,12 +116,10 @@ Deno.test("setupNimble.fetch matches PATCH route", async () => {
 Deno.test("setupNimble.fetch matches OPTIONS route", async () => {
   const app = setupNimble([
     route.options("/api", {
-      resolve: () => ({
-        ok: true,
-        response: new Response(null, {
+      resolve: () =>
+        new Response(null, {
           headers: { "Allow": "GET, POST, OPTIONS" },
         }),
-      }),
     }),
   ]);
 
@@ -137,7 +133,7 @@ Deno.test("setupNimble.fetch matches OPTIONS route", async () => {
 Deno.test("setupNimble.fetch matches route.all for any method", async () => {
   const app = setupNimble([
     route.all("/wildcard", {
-      resolve: () => ({ ok: true, response: new Response("Any method") }),
+      resolve: () => new Response("Any method"),
     }),
   ]);
 
@@ -156,10 +152,7 @@ Deno.test("setupNimble.fetch matches route.all for any method", async () => {
 Deno.test("setupNimble.fetch matches custom method with route.on", async () => {
   const app = setupNimble([
     route.on("PROPFIND", "/webdav", {
-      resolve: () => ({
-        ok: true,
-        response: new Response("PROPFIND response"),
-      }),
+      resolve: () => new Response("PROPFIND response"),
     }),
   ]);
 
@@ -173,10 +166,10 @@ Deno.test("setupNimble.fetch matches custom method with route.on", async () => {
 Deno.test("setupNimble.fetch route.all doesn't interfere with specific routes", async () => {
   const app = setupNimble([
     route.get("/test", {
-      resolve: () => ({ ok: true, response: new Response("GET specific") }),
+      resolve: () => new Response("GET specific"),
     }),
     route.all("/test", {
-      resolve: () => ({ ok: true, response: new Response("Any method") }),
+      resolve: () => new Response("Any method"),
     }),
   ]);
 

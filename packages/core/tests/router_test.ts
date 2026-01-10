@@ -10,7 +10,7 @@ Deno.test("createRouter.match returns null for no routes", () => {
 Deno.test("createRouter.match extracts path params", () => {
   const router = createRouter([
     route.get("/users/:id", {
-      resolve: () => ({ ok: true, response: new Response("OK") }),
+      resolve: () => new Response("OK"),
     }),
   ]);
   const result = router.match("GET", "http://localhost/users/123");
@@ -20,10 +20,7 @@ Deno.test("createRouter.match extracts path params", () => {
 Deno.test("handler receives parsed cookies", async () => {
   const router = createRouter([
     route.get("/auth", {
-      resolve: (c) => ({
-        ok: true,
-        response: new Response(c.raw.cookies.token ?? "none"),
-      }),
+      resolve: (c) => new Response(c.raw.cookies.token ?? "none"),
     }),
   ]);
   const req = new Request("http://localhost/auth", {
@@ -38,10 +35,7 @@ Deno.test("handler can access URL via request", async () => {
     route.get("/search", {
       resolve: (c) => {
         const url = new URL(c.req.url);
-        return {
-          ok: true,
-          response: new Response(url.searchParams.get("q") ?? ""),
-        };
+        return new Response(url.searchParams.get("q") ?? "");
       },
     }),
   ]);
@@ -53,7 +47,7 @@ Deno.test("handler can access URL via request", async () => {
 Deno.test("createRouter.match extracts multiple path params", () => {
   const router = createRouter([
     route.get("/users/:userId/posts/:postId", {
-      resolve: () => ({ ok: true, response: new Response("OK") }),
+      resolve: () => new Response("OK"),
     }),
   ]);
   const result = router.match("GET", "http://localhost/users/42/posts/7");
@@ -64,7 +58,7 @@ Deno.test("createRouter.match extracts multiple path params", () => {
 Deno.test("createRouter.match returns null for wrong method", () => {
   const router = createRouter([
     route.get("/test", {
-      resolve: () => ({ ok: true, response: new Response("OK") }),
+      resolve: () => new Response("OK"),
     }),
   ]);
   assertEquals(router.match("POST", "http://localhost/test"), null);
@@ -73,7 +67,7 @@ Deno.test("createRouter.match returns null for wrong method", () => {
 Deno.test("createRouter.match matches wildcard method", () => {
   const router = createRouter([
     route.all("/any", {
-      resolve: () => ({ ok: true, response: new Response("OK") }),
+      resolve: () => new Response("OK"),
     }),
   ]);
   assertEquals(

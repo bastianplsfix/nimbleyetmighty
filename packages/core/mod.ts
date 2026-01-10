@@ -3,7 +3,6 @@ export {
   type GuardResult,
   type Handler,
   type HandlerFn,
-  type ResolveResult,
   route,
   type RouteConfig,
 } from "./src/route.ts";
