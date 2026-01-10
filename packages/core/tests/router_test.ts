@@ -26,8 +26,8 @@ Deno.test("handler receives parsed cookies", async () => {
   const req = new Request("http://localhost/auth", {
     headers: { cookie: "token=abc123; other=value" },
   });
-  const res = await router.handle(req);
-  assertEquals(await res.text(), "abc123");
+  const result = await router.handle(req);
+  assertEquals(await result.response.text(), "abc123");
 });
 
 Deno.test("handler can access URL via request", async () => {
@@ -40,8 +40,8 @@ Deno.test("handler can access URL via request", async () => {
     }),
   ]);
   const req = new Request("http://localhost/search?q=hello");
-  const res = await router.handle(req);
-  assertEquals(await res.text(), "hello");
+  const result = await router.handle(req);
+  assertEquals(await result.response.text(), "hello");
 });
 
 Deno.test("createRouter.match extracts multiple path params", () => {
@@ -87,7 +87,7 @@ Deno.test("createRouter.match matches wildcard method", () => {
 Deno.test("createRouter.handle returns 404 for no match", async () => {
   const router = createRouter([]);
   const req = new Request("http://localhost/nothing");
-  const res = await router.handle(req);
-  assertEquals(res.status, 404);
-  assertEquals(await res.text(), "Not Found");
+  const result = await router.handle(req);
+  assertEquals(result.response.status, 404);
+  assertEquals(await result.response.text(), "Not Found");
 });

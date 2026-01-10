@@ -15,9 +15,10 @@ export {
 } from "./src/route.ts";
 export { group, type GroupOptions, type HandlerGroup } from "./src/group.ts";
 export {
-  type ErrorContext,
   type NimbleConfig,
   type OnErrorHandler,
+  type OnRequestHandler,
+  type OnResponseHandler,
   setupNimble,
 } from "./src/runtime.ts";
 

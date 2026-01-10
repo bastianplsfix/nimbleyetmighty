@@ -1,10 +1,15 @@
-import type { Handler, RouteParams } from "./route.ts";
+import type { Context, Handler, RouteParams } from "./route.ts";
 import { parseCookies } from "./cookies.ts";
 import {
   parseBody,
   parseQuery,
   validateInputs,
 } from "./internal/validation.ts";
+
+// Avoid circular dependency: OnRequestHandler type is defined inline
+type OnRequestHandler = (
+  c: Context,
+) => void | Record<string, unknown> | Promise<void | Record<string, unknown>>;
 
 interface CompiledRoute {
   handler: Handler;
@@ -16,12 +21,17 @@ export interface RouteMatch {
   params: RouteParams;
 }
 
+export interface RouterResponse {
+  response: Response;
+  context: Context;
+}
+
 export interface Router {
   match: (method: string, url: string) => RouteMatch | null;
   handle: (
     req: Request,
-    initialLocals?: Record<string, unknown>,
-  ) => Promise<Response>;
+    onRequest?: OnRequestHandler,
+  ) => Promise<RouterResponse>;
 }
 
 export function createRouter(handlers: Handler[]): Router {
@@ -54,11 +64,21 @@ export function createRouter(handlers: Handler[]): Router {
     match,
     handle: async (
       req: Request,
-      initialLocals: Record<string, unknown> = {},
-    ): Promise<Response> => {
+      onRequest?: OnRequestHandler,
+    ): Promise<RouterResponse> => {
       const matched = match(req.method, req.url);
       if (!matched) {
-        return new Response("Not Found", { status: 404 });
+        // Create minimal context for 404 response
+        const notFoundContext: Context = {
+          req,
+          raw: { params: {}, query: {}, cookies: {}, body: undefined },
+          input: { ok: true, params: {}, query: {}, body: {} },
+          locals: {},
+        };
+        return {
+          response: new Response("Not Found", { status: 404 }),
+          context: notFoundContext,
+        };
       }
 
       // Extract raw values
@@ -80,7 +100,8 @@ export function createRouter(handlers: Handler[]): Router {
         },
       );
 
-      const context = {
+      // Create initial context with empty locals
+      const context: Context = {
         req,
         raw: {
           params: matched.params,
@@ -89,26 +110,53 @@ export function createRouter(handlers: Handler[]): Router {
           body,
         },
         input,
-        locals: { ...initialLocals },
+        locals: {},
       };
+
+      // Run onRequest hook to get initial locals (receives full context)
+      if (onRequest) {
+        const localsPatch = await onRequest(context);
+        if (localsPatch) {
+          context.locals = { ...context.locals, ...localsPatch };
+        }
+      }
 
       // Execute guards in order
       if (matched.handler.guards && matched.handler.guards.length > 0) {
         for (const guard of matched.handler.guards) {
-          const guardResult = await guard(context);
-          if ("deny" in guardResult) {
-            // Guard denied the request, return the denial response
-            return guardResult.deny;
-          }
-          // Guard allowed, merge any locals it provided
-          if (guardResult.locals) {
-            context.locals = { ...context.locals, ...guardResult.locals };
+          try {
+            const guardResult = await guard(context);
+            if ("deny" in guardResult) {
+              // Guard denied the request, return the denial response
+              return {
+                response: guardResult.deny,
+                context,
+              };
+            }
+            // Guard allowed, merge any locals it provided
+            if (guardResult.locals) {
+              context.locals = { ...context.locals, ...guardResult.locals };
+            }
+          } catch (error) {
+            // Attach context to error so onError can access it
+            (error as any).context = context;
+            throw error;
           }
         }
       }
 
       // All guards passed, execute the handler
-      return await matched.handler.handler(context);
+      try {
+        const response = await matched.handler.handler(context);
+        return {
+          response,
+          context,
+        };
+      } catch (error) {
+        // Attach context to error so onError can access it
+        (error as any).context = context;
+        throw error;
+      }
     },
   };
 }

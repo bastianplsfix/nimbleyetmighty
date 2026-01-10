@@ -179,15 +179,15 @@ const app = setupNimble({
     ...protectedRoutes,
   ],
 
-  onRequest: (req) => {
-    const requestId = req.headers.get("x-request-id") ||
+  onRequest: (c) => {
+    const requestId = c.req.headers.get("x-request-id") ||
       crypto.randomUUID();
     return { requestId };
   },
 
-  onResponse: (req, res) => {
-    const requestId = req.headers.get("x-request-id") ||
-      crypto.randomUUID();
+  onResponse: (c, res) => {
+    // Use requestId from locals (set by onRequest)
+    const requestId = String(c.locals.requestId);
     const headers = new Headers(res.headers);
     headers.set("x-request-id", requestId);
     return new Response(res.body, {
