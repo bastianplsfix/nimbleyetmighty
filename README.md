@@ -112,7 +112,7 @@ npm install @nimble/core
 import { setupNimble, route } from "@nimble/core";
 
 const app = setupNimble({
-  routes: [
+  handlers: [
     route.get("/hello", {
       resolve: () => new Response("Hello world"),
     }),
@@ -141,7 +141,7 @@ const handler = setupNimble({
 
 | Name         | Type                         | Description                    |
 | ------------ | ---------------------------- | ------------------------------ |
-| `routes`     | `Route[]`                    | All registered routes          |
+| `handlers`     | `handler[]`                    | All registered handlers          |
 | `onRequest`  | `(c) => void \| LocalsPatch` | Runs after validation          |
 | `onResponse` | `(c, res) => Response`       | Runs before returning response |
 | `onError`    | `(err, c) => Response`       | Global error handler           |
@@ -452,7 +452,7 @@ Groups compose guards **at build time**.
 ```ts
 group({
   guards: GuardFn[],
-  routes: Route[]
+  handlers: Route[]
 })
 ```
 
@@ -472,7 +472,7 @@ No runtime behavior.
 ```ts
 const apiRoutes = group({
   guards: [requireAuth],
-  routes: [
+  handlers: [
     route.get("/me", { resolve: ... }),
     route.post("/posts", { resolve: ... }),
   ],
@@ -484,10 +484,10 @@ Nested:
 ```ts
 group({
   guards: [requireAuth],
-  routes: [
+  handlers: [
     ...group({
       guards: [requireAdmin],
-      routes: [
+      handlers: [
         route.get("/admin", ...),
       ],
     }),

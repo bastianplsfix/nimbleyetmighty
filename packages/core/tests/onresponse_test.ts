@@ -3,7 +3,7 @@ import { route, setupNimble } from "../mod.ts";
 
 Deno.test("onResponse: receives context and response", async () => {
   const app = setupNimble({
-    routes: [
+    handlers: [
       route.get("/test", {
         resolve: () => {
           return new Response("original");
@@ -28,7 +28,7 @@ Deno.test("onResponse: receives context and response", async () => {
 
 Deno.test("onResponse: can access locals from context", async () => {
   const app = setupNimble({
-    routes: [
+    handlers: [
       route.get("/test", {
         resolve: () => {
           return new Response("ok");
@@ -55,7 +55,7 @@ Deno.test("onResponse: can access locals from context", async () => {
 
 Deno.test("onResponse: can access route params from context", async () => {
   const app = setupNimble({
-    routes: [
+    handlers: [
       route.get("/users/:id", {
         resolve: () => {
           return new Response("user data");
@@ -79,7 +79,7 @@ Deno.test("onResponse: can access route params from context", async () => {
 
 Deno.test("onResponse: can modify response status", async () => {
   const app = setupNimble({
-    routes: [
+    handlers: [
       route.get("/test", {
         resolve: () => {
           return new Response("ok", { status: 200 });
@@ -101,7 +101,7 @@ Deno.test("onResponse: can modify response status", async () => {
 
 Deno.test("onResponse: async handler works", async () => {
   const app = setupNimble({
-    routes: [
+    handlers: [
       route.get("/test", {
         resolve: () => {
           return new Response("ok");

@@ -5,7 +5,7 @@ Deno.test("guard allows request when returning null", async () => {
   const authGuard: GuardFn = () => ({ allow: true });
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/protected", {
         resolve: () => new Response("Secret"),
       }),
@@ -24,7 +24,7 @@ Deno.test("guard allows request when returning undefined", async () => {
   const authGuard: GuardFn = () => ({ allow: true });
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/protected", {
         resolve: () => new Response("Secret"),
       }),
@@ -45,7 +45,7 @@ Deno.test("guard rejects request when returning Response", async () => {
   });
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/protected", {
         resolve: () => new Response("Secret"),
       }),
@@ -70,7 +70,7 @@ Deno.test("guard has access to request headers", async () => {
   };
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/protected", {
         resolve: () => new Response("Secret"),
       }),
@@ -103,7 +103,7 @@ Deno.test("guard has access to request params", async () => {
   };
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/users/:id", {
         resolve: () => new Response("User"),
       }),
@@ -126,7 +126,7 @@ Deno.test("guard has access to request object", async () => {
   };
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.all("/test", {
         resolve: () => new Response("OK"),
       }),
@@ -164,7 +164,7 @@ Deno.test("multiple guards execute in order", async () => {
   };
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/test", {
         resolve: () => new Response("OK"),
       }),
@@ -197,7 +197,7 @@ Deno.test("guards stop execution on first rejection", async () => {
   };
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/test", {
         resolve: () => new Response("OK"),
       }),
@@ -220,7 +220,7 @@ Deno.test("handler not executed if guard rejects", async () => {
   });
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/test", {
         resolve: () => {
           handlerExecuted = true;
@@ -251,7 +251,7 @@ Deno.test("nested group guards execute outer-first", async () => {
   };
 
   const innerHandlers = group({
-    routes: [
+    handlers: [
       route.get("/api/users", {
         resolve: () => new Response("Users"),
       }),
@@ -260,7 +260,7 @@ Deno.test("nested group guards execute outer-first", async () => {
   });
 
   const outerHandlers = group({
-    routes: [innerHandlers],
+    handlers: [innerHandlers],
     guards: [outerGuard],
   });
 
@@ -282,7 +282,7 @@ Deno.test("async guards work correctly", async () => {
   };
 
   const handlers = group({
-    routes: [
+    handlers: [
       route.get("/protected", {
         resolve: () => new Response("Secret"),
       }),
