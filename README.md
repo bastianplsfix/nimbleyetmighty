@@ -55,6 +55,8 @@ Nimble is built for:
 ```
 Request
    ↓
+onRequest (locals only)
+   ↓
 Route match
    ↓
 Extract raw inputs
@@ -62,8 +64,6 @@ Extract raw inputs
 Parse body (if needed)
    ↓
 Validate (manual)
-   ↓
-onRequest (add locals)
    ↓
 Guards (allow / deny)
    ↓
@@ -130,7 +130,7 @@ Deno.serve(app);
 
 ```ts
 const handler = setupNimble({
-  routes,
+  handlers,
   onRequest?,
   onResponse?,
   onError?,
@@ -139,12 +139,12 @@ const handler = setupNimble({
 
 ### Options
 
-| Name         | Type                         | Description                    |
-| ------------ | ---------------------------- | ------------------------------ |
-| `handlers`     | `handler[]`                    | All registered handlers          |
-| `onRequest`  | `(c) => void \| LocalsPatch` | Runs after validation          |
-| `onResponse` | `(c, res) => Response`       | Runs before returning response |
-| `onError`    | `(err, c) => Response`       | Global error handler           |
+| Name         | Type                            | Description                    |
+| ------------ | ------------------------------- | ------------------------------ |
+| `handlers`     | `Handler[]`                     | All registered handlers        |
+| `onRequest`  | `(req) => void \| LocalsPatch`  | Runs before routing            |
+| `onResponse` | `(c, res) => Response`          | Runs before returning response |
+| `onError`    | `(err, c) => Response`          | Global error handler           |
 
 Returns:
 
@@ -164,18 +164,21 @@ Compatible with:
 # Routing
 
 ```ts
-route.get(path, config)
-route.head(path, config)
-route.post(path, config)
-route.put(path, config)
-route.patch(path, config)
-route.delete(path, config)
-route.options(path, config)
-route.all(path, config)
-route.on(method, path, config)
+route.get(path, config): Handler
+route.head(path, config): Handler
+route.post(path, config): Handler
+route.put(path, config): Handler
+route.patch(path, config): Handler
+route.delete(path, config): Handler
+route.options(path, config): Handler
+route.all(path, config): Handler
+route.on(method, path, config): Handler
 ```
 
-Routes use **URLPattern**.
+Each route factory returns a **Handler** descriptor:
+`{ method, path, handler, guards?, request? }`
+
+Routes use **URLPattern** for path matching.
 
 If no route matches → framework returns `404`.
 
@@ -452,8 +455,8 @@ Groups compose guards **at build time**.
 ```ts
 group({
   guards: GuardFn[],
-  handlers: Route[]
-})
+  handlers: Handler[]
+}): Handler[]
 ```
 
 Behavior:
@@ -499,7 +502,7 @@ group({
 
 # onRequest hook
 
-Runs **after route matching**, receives full `Context`.
+Runs **before routing**, receives only `Request`.
 
 Rules:
 
@@ -508,13 +511,13 @@ Rules:
 * May only return locals patch
 
 ```ts
-onRequest: (c) => ({
+onRequest: (req) => ({
   requestId: crypto.randomUUID(),
   startedAt: Date.now(),
 })
 ```
 
-Returns a locals patch that creates a **new context** with accumulated locals.
+Returns a locals patch that will be merged into context after routing.
 
 Use for:
 
@@ -604,6 +607,8 @@ Handler decides
 ```
 Request
    ↓
+onRequest
+   ↓
 Route match
    ↓
 Extract raw
@@ -611,8 +616,6 @@ Extract raw
 Parse body
    ↓
 Validate
-   ↓
-onRequest
    ↓
 Guards
    ↓

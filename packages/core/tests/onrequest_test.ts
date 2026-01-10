@@ -127,7 +127,7 @@ Deno.test("onRequest: no onRequest means empty initial locals", async () => {
   assertEquals(await res.json(), { hasLocals: false });
 });
 
-Deno.test("onRequest: can access full context", async () => {
+Deno.test("onRequest: receives only Request, not full context", async () => {
   const app = setupNimble({
     handlers: [
       route.get("/test/:id", {
@@ -136,13 +136,12 @@ Deno.test("onRequest: can access full context", async () => {
         },
       }),
     ],
-    onRequest: (c) => {
-      const url = new URL(c.req.url);
+    onRequest: (req) => {
+      const url = new URL(req.url);
       return {
-        method: c.req.method,
+        method: req.method,
         pathname: url.pathname,
-        hasParams: Object.keys(c.raw.params).length > 0,
-        paramId: c.raw.params.id,
+        // Cannot access params - they don't exist yet
       };
     },
   });
@@ -152,6 +151,5 @@ Deno.test("onRequest: can access full context", async () => {
   const locals = await res.json();
   assertEquals(locals.method, "GET");
   assertEquals(locals.pathname, "/test/123");
-  assertEquals(locals.hasParams, true);
-  assertEquals(locals.paramId, "123");
+  // params are not available in onRequest
 });

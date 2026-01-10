@@ -5,11 +5,6 @@ import {
   validateInputs,
 } from "./internal/validation.ts";
 
-// Avoid circular dependency: OnRequestHandler type is defined inline
-type OnRequestHandler = (
-  c: Context,
-) => void | Record<string, unknown> | Promise<void | Record<string, unknown>>;
-
 interface CompiledRoute {
   handler: Handler;
   pattern: URLPattern;
@@ -29,7 +24,7 @@ export interface Router {
   match: (method: string, url: string) => RouteMatch | null;
   handle: (
     req: Request,
-    onRequest?: OnRequestHandler,
+    initialLocals: Record<string, unknown>,
   ) => Promise<RouterResponse>;
 }
 
@@ -63,7 +58,7 @@ export function createRouter(handlers: Handler[]): Router {
     match,
     handle: async (
       req: Request,
-      onRequest?: OnRequestHandler,
+      initialLocals: Record<string, unknown>,
     ): Promise<RouterResponse> => {
       const matched = match(req.method, req.url);
       if (!matched) {
@@ -98,7 +93,7 @@ export function createRouter(handlers: Handler[]): Router {
         },
       );
 
-      // Create initial context with empty locals
+      // Create initial context with locals from onRequest hook
       let context: Context = {
         req,
         raw: {
@@ -107,20 +102,8 @@ export function createRouter(handlers: Handler[]): Router {
           body,
         },
         input,
-        locals: {},
+        locals: { ...initialLocals },
       };
-
-      // Run onRequest hook to get initial locals (receives full context)
-      // Creates new context with merged locals
-      if (onRequest) {
-        const localsPatch = await onRequest(context);
-        if (localsPatch) {
-          context = {
-            ...context,
-            locals: { ...context.locals, ...localsPatch },
-          };
-        }
-      }
 
       // Execute guards in order
       // Each guard that adds locals creates a new context

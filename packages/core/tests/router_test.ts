@@ -29,7 +29,7 @@ Deno.test("handler can access request headers", async () => {
   const req = new Request("http://localhost/auth", {
     headers: { authorization: "Bearer abc123" },
   });
-  const result = await router.handle(req);
+  const result = await router.handle(req, {});
   assertEquals(await result.response.text(), "Bearer abc123");
 });
 
@@ -43,7 +43,7 @@ Deno.test("handler can access URL via request", async () => {
     }),
   ]);
   const req = new Request("http://localhost/search?q=hello");
-  const result = await router.handle(req);
+  const result = await router.handle(req, {});
   assertEquals(await result.response.text(), "hello");
 });
 
@@ -90,7 +90,7 @@ Deno.test("createRouter.match matches wildcard method", () => {
 Deno.test("createRouter.handle returns 404 for no match", async () => {
   const router = createRouter([]);
   const req = new Request("http://localhost/nothing");
-  const result = await router.handle(req);
+  const result = await router.handle(req, {});
   assertEquals(result.response.status, 404);
   assertEquals(await result.response.text(), "Not Found");
 });

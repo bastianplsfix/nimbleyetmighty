@@ -179,8 +179,8 @@ const app = setupNimble({
     ...protectedRoutes,
   ],
 
-  onRequest: (c) => {
-    const requestId = c.req.headers.get("x-request-id") ||
+  onRequest: (req) => {
+    const requestId = req.headers.get("x-request-id") ||
       crypto.randomUUID();
     return { requestId };
   },

@@ -10,9 +10,9 @@ export type OnErrorHandler = (
 ) => Response | Promise<Response>;
 
 // onRequest hook that runs before routing begins
-// Returns a locals patch to be merged into c.locals
+// Receives minimal input (just the request), returns a locals patch
 export type OnRequestHandler = (
-  c: Context,
+  req: Request,
 ) => void | Record<string, unknown> | Promise<void | Record<string, unknown>>;
 
 // onResponse hook that runs after handler execution, before returning response
@@ -66,9 +66,11 @@ export function setupNimble(
     // Standard fetch signature compatible with Deno.serve / Bun.serve
     fetch: async (req: Request): Promise<Response> => {
       try {
+        // Run onRequest hook BEFORE routing to get initial locals
+        const initialLocals = onRequest ? await onRequest(req) : {};
+
         // Normal request processing - guards and handlers use explicit returns
-        // onRequest hook is now called inside router.handle to receive full context
-        let response = await router.handle(req, onRequest);
+        let response = await router.handle(req, initialLocals || {});
 
         // Run onResponse hook after handler execution
         // Note: onResponse receives the full context from the route handler
