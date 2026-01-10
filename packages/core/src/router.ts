@@ -53,6 +53,7 @@ export function createRouter(handlers: Handler[]) {
           params: matched.params,
           cookies,
         },
+        locals: {},
       };
 
       // Execute guards in order

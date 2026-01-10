@@ -341,3 +341,33 @@ Deno.test("guards can be applied to individual routes without group", async () =
   );
   assertEquals(protectedWithCookie.status, 200);
 });
+
+Deno.test("c.locals allows sharing state between guards and handlers", async () => {
+  const authGuard: GuardFn = (c) => {
+    // Guard can set data in c.locals
+    c.locals.userId = "user-123";
+    c.locals.role = "admin";
+    return { allow: true };
+  };
+
+  const handlers = [
+    route.get("/profile", {
+      resolve: (c) => {
+        // Handler can read data from c.locals
+        const userId = c.locals.userId as string;
+        const role = c.locals.role as string;
+        return {
+          ok: true,
+          response: new Response(`User: ${userId}, Role: ${role}`),
+        };
+      },
+      guards: [authGuard],
+    }),
+  ];
+
+  const app = setupNimble(handlers);
+  const response = await app.fetch(new Request("http://localhost/profile"));
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.text(), "User: user-123, Role: admin");
+});

@@ -15,6 +15,8 @@ export interface Context {
   readonly req: Request;
   /** Extracted, unvalidated values */
   readonly raw: RawValues;
+  /** Shared state across guards and handlers for the request */
+  locals: Record<string, unknown>;
 }
 
 // Result type that makes semantic intent explicit
