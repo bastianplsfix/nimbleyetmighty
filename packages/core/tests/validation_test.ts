@@ -306,13 +306,16 @@ Deno.test("validation: c.input.raw contains raw values on failure", async () => 
   assertEquals(json.failed, ["params"]);
 });
 
-Deno.test("validation: body not parsed when no body schema", async () => {
+Deno.test("validation: body parsed even without schema", async () => {
   const app = setupNimble([
     route.post("/data", {
-      // No body schema defined
+      // No body schema defined, but body should still be parsed
       resolve: (c) => {
-        // Body should be undefined since no schema was defined
-        return Response.json({ hasBody: c.raw.body !== undefined });
+        // Body is parsed and cached in c.raw.body
+        return Response.json({
+          hasBody: c.raw.body !== undefined,
+          bodyData: c.raw.body,
+        });
       },
     }),
   ]);
@@ -325,7 +328,9 @@ Deno.test("validation: body not parsed when no body schema", async () => {
     }),
   );
   assertEquals(res.status, 200);
-  assertEquals(await res.json(), { hasBody: false });
+  const json = await res.json();
+  assertEquals(json.hasBody, true);
+  assertEquals(json.bodyData, { data: "test" });
 });
 
 Deno.test("validation: body parsed when body schema defined", async () => {

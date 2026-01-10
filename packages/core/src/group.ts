@@ -4,20 +4,20 @@ import type { GuardFn, Handler } from "./route.ts";
 export type HandlerGroup = Handler | Handler[] | HandlerGroup[];
 
 export interface GroupOptions {
-  handlers: HandlerGroup[];
+  routes: HandlerGroup[];
   guards?: GuardFn[];
 }
 
 // Compose multiple handlers or handler groups into a flat array
 // Guards are applied to all handlers in the group and nested groups
 export function group(options: GroupOptions): Handler[] {
-  const { handlers, guards } = options;
+  const { routes, guards } = options;
   const result: Handler[] = [];
 
-  for (const item of handlers) {
+  for (const item of routes) {
     if (Array.isArray(item)) {
       // Recursively flatten nested groups
-      const nestedHandlers = group({ handlers: item });
+      const nestedHandlers = group({ routes: item });
       result.push(...nestedHandlers);
     } else {
       // Single handler

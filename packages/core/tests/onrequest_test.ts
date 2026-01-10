@@ -3,7 +3,7 @@ import { route, setupNimble } from "../mod.ts";
 
 Deno.test("onRequest: returns locals patch that gets merged", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         resolve: (c) => {
           return Response.json(c.locals);
@@ -27,7 +27,7 @@ Deno.test("onRequest: returns locals patch that gets merged", async () => {
 
 Deno.test("onRequest: async function works", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         resolve: (c) => {
           return Response.json(c.locals);
@@ -51,7 +51,7 @@ Deno.test("onRequest: async function works", async () => {
 
 Deno.test("onRequest: locals merge with guard locals", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         guards: [
           () => ({
@@ -82,7 +82,7 @@ Deno.test("onRequest: locals merge with guard locals", async () => {
 
 Deno.test("onRequest: guard locals override onRequest locals", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         guards: [
           () => ({
@@ -129,7 +129,7 @@ Deno.test("onRequest: no onRequest means empty initial locals", async () => {
 
 Deno.test("onRequest: can access full context", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test/:id", {
         resolve: (c) => {
           return Response.json(c.locals);

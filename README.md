@@ -55,8 +55,6 @@ Nimble is built for:
 ```
 Request
    ↓
-onRequest (locals only)
-   ↓
 Route match
    ↓
 Extract raw inputs
@@ -64,6 +62,8 @@ Extract raw inputs
 Parse body (if needed)
    ↓
 Validate (manual)
+   ↓
+onRequest (add locals)
    ↓
 Guards (allow / deny)
    ↓
@@ -139,12 +139,12 @@ const handler = setupNimble({
 
 ### Options
 
-| Name         | Type                         | Description           |
-| ------------ | ---------------------------- | --------------------- |
-| `routes`     | `Route[]`                    | All registered routes |
-| `onRequest`  | `(c) => void \| LocalsPatch` | Runs before routing   |
-| `onResponse` | `(c, res) => Response`       | Runs before returning |
-| `onError`    | `(err, c) => Response`       | Global error handler  |
+| Name         | Type                         | Description                    |
+| ------------ | ---------------------------- | ------------------------------ |
+| `routes`     | `Route[]`                    | All registered routes          |
+| `onRequest`  | `(c) => void \| LocalsPatch` | Runs after validation          |
+| `onResponse` | `(c, res) => Response`       | Runs before returning response |
+| `onError`    | `(err, c) => Response`       | Global error handler           |
 
 Returns:
 
@@ -452,7 +452,7 @@ Groups compose guards **at build time**.
 ```ts
 group({
   guards: GuardFn[],
-  handlers: Route[]
+  routes: Route[]
 })
 ```
 
@@ -472,7 +472,7 @@ No runtime behavior.
 ```ts
 const apiRoutes = group({
   guards: [requireAuth],
-  handlers: [
+  routes: [
     route.get("/me", { resolve: ... }),
     route.post("/posts", { resolve: ... }),
   ],
@@ -484,10 +484,10 @@ Nested:
 ```ts
 group({
   guards: [requireAuth],
-  handlers: [
+  routes: [
     ...group({
       guards: [requireAdmin],
-      handlers: [
+      routes: [
         route.get("/admin", ...),
       ],
     }),
@@ -604,8 +604,6 @@ Handler decides
 ```
 Request
    ↓
-onRequest
-   ↓
 Route match
    ↓
 Extract raw
@@ -613,6 +611,8 @@ Extract raw
 Parse body
    ↓
 Validate
+   ↓
+onRequest
    ↓
 Guards
    ↓

@@ -38,8 +38,8 @@ const defaultOnError: OnErrorHandler = (error, c) => {
 
 // Configuration options for setupNimble
 export interface NimbleConfig {
-  /** Route handlers */
-  handlers: Handler[];
+  /** Routes to register */
+  routes: Handler[];
   /** Custom error handler for unexpected exceptions (optional) */
   onError?: OnErrorHandler;
   /** Hook that runs before routing begins (optional) */
@@ -53,7 +53,7 @@ export function setupNimble(
   config: Handler[] | NimbleConfig,
 ) {
   // Support both array of handlers (legacy) and config object
-  const handlers = Array.isArray(config) ? config : config.handlers;
+  const handlers = Array.isArray(config) ? config : config.routes;
   const onError = Array.isArray(config)
     ? defaultOnError
     : (config.onError ?? defaultOnError);

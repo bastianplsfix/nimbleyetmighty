@@ -167,14 +167,14 @@ const publicRoutes = [
 
 const protectedRoutes = group({
   guards: [requireAuth],
-  handlers: [
+  routes: [
     protectedHandler,
     createUserHandler,
   ],
 });
 
 const app = setupNimble({
-  handlers: [
+  routes: [
     ...publicRoutes,
     ...protectedRoutes,
   ],

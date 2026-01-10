@@ -85,10 +85,10 @@ export function createRouter(handlers: Handler[]): Router {
       const cookies = parseCookies(req.headers.get("cookie"));
       const query = parseQuery(req.url);
 
-      // Only parse body if a body schema is defined
-      const body = matched.handler.request?.body
-        ? await parseBody(req)
-        : undefined;
+      // Parse body if request has a body
+      // Caches result in c.raw.body for handler access
+      // Invalid JSON becomes undefined (caught in parseBody)
+      const body = await parseBody(req);
 
       // Perform validation if schemas are defined
       const input = validateInputs(

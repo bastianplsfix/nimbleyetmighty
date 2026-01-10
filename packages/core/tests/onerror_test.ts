@@ -3,7 +3,7 @@ import { route, setupNimble } from "../mod.ts";
 
 Deno.test("onError: receives error and context", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         resolve: () => {
           throw new Error("Something went wrong");
@@ -28,7 +28,7 @@ Deno.test("onError: receives error and context", async () => {
 
 Deno.test("onError: can access locals from context", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         resolve: () => {
           throw new Error("Fail");
@@ -54,7 +54,7 @@ Deno.test("onError: can access locals from context", async () => {
 
 Deno.test("onError: can access route params from context", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/users/:id/fail", {
         resolve: () => {
           throw new Error("User processing failed");
@@ -77,7 +77,7 @@ Deno.test("onError: can access route params from context", async () => {
 
 Deno.test("onError: default handler logs and returns 500", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         resolve: () => {
           throw new Error("Unexpected error");
@@ -95,7 +95,7 @@ Deno.test("onError: default handler logs and returns 500", async () => {
 
 Deno.test("onError: async handler works", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         resolve: () => {
           throw new Error("Async test error");
@@ -119,7 +119,7 @@ Deno.test("onError: async handler works", async () => {
 
 Deno.test("onError: handles errors from guards", async () => {
   const app = setupNimble({
-    handlers: [
+    routes: [
       route.get("/test", {
         guards: [
           () => {
