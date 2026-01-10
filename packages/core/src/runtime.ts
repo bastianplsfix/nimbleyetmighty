@@ -1,6 +1,6 @@
 // runtime.ts
 
-import type { Handler, ResolverInfo } from "./route.ts";
+import type { Handler } from "./route.ts";
 import { createRouter } from "./router.ts";
 
 // Error context passed to onError handler

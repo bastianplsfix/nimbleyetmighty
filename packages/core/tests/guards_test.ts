@@ -61,8 +61,8 @@ Deno.test("guard rejects request when returning Response", async () => {
 });
 
 Deno.test("guard has access to cookies", async () => {
-  const authGuard: GuardFn = ({ cookies }) => {
-    if (!cookies["session"]) {
+  const authGuard: GuardFn = (c) => {
+    if (!c.raw.cookies["session"]) {
       return { deny: new Response("Unauthorized", { status: 401 }) };
     }
     return { allow: true };
@@ -96,8 +96,8 @@ Deno.test("guard has access to cookies", async () => {
 Deno.test("guard has access to request params", async () => {
   let capturedUserId: string | undefined;
 
-  const paramGuard: GuardFn = ({ params }) => {
-    capturedUserId = params.id;
+  const paramGuard: GuardFn = (c) => {
+    capturedUserId = c.raw.params.id;
     return { allow: true };
   };
 
@@ -117,8 +117,8 @@ Deno.test("guard has access to request params", async () => {
 });
 
 Deno.test("guard has access to request object", async () => {
-  const methodGuard: GuardFn = ({ request }) => {
-    if (request.method !== "GET") {
+  const methodGuard: GuardFn = (c) => {
+    if (c.req.method !== "GET") {
       return { deny: new Response("Method not allowed", { status: 405 }) };
     }
     return { allow: true };
@@ -270,11 +270,11 @@ Deno.test("nested group guards execute outer-first", async () => {
 });
 
 Deno.test("async guards work correctly", async () => {
-  const asyncGuard: GuardFn = async ({ cookies }) => {
+  const asyncGuard: GuardFn = async (c) => {
     // Simulate async validation (e.g., database check)
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    if (!cookies["token"]) {
+    if (!c.raw.cookies["token"]) {
       return { deny: new Response("Unauthorized", { status: 401 }) };
     }
     return { allow: true };
@@ -303,8 +303,8 @@ Deno.test("async guards work correctly", async () => {
 });
 
 Deno.test("guards can be applied to individual routes without group", async () => {
-  const authGuard: GuardFn = ({ cookies }) => {
-    if (!cookies["session"]) {
+  const authGuard: GuardFn = (c) => {
+    if (!c.raw.cookies["session"]) {
       return { deny: new Response("Unauthorized", { status: 401 }) };
     }
     return { allow: true };

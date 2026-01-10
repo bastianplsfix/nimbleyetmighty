@@ -66,8 +66,8 @@ Deno.test("setupNimble.fetch returns 404 for unmatched method", async () => {
 Deno.test("setupNimble.fetch handler receives request", async () => {
   const app = setupNimble([
     route.post("/echo", {
-      resolve: async ({ request }) => {
-        const body = await request.text();
+      resolve: async (c) => {
+        const body = await c.req.text();
         return { ok: true, response: new Response(body) };
       },
     }),

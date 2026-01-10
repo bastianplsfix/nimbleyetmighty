@@ -47,16 +47,18 @@ export function createRouter(handlers: Handler[]) {
 
       const cookies = parseCookies(req.headers.get("cookie"));
 
-      const resolverInfo = {
-        request: req,
-        params: matched.params,
-        cookies,
+      const context = {
+        req,
+        raw: {
+          params: matched.params,
+          cookies,
+        },
       };
 
       // Execute guards in order
       if (matched.handler.guards && matched.handler.guards.length > 0) {
         for (const guard of matched.handler.guards) {
-          const guardResult = await guard(resolverInfo);
+          const guardResult = await guard(context);
           if ("deny" in guardResult) {
             // Guard denied the request, return the denial response
             return guardResult.deny;
@@ -66,7 +68,7 @@ export function createRouter(handlers: Handler[]) {
       }
 
       // All guards passed, execute the handler
-      const result = await matched.handler.handler(resolverInfo);
+      const result = await matched.handler.handler(context);
 
       // Extract the response from ResolveResult
       return result.response;

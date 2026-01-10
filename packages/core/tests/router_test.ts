@@ -20,9 +20,9 @@ Deno.test("createRouter.match extracts path params", () => {
 Deno.test("handler receives parsed cookies", async () => {
   const router = createRouter([
     route.get("/auth", {
-      resolve: ({ cookies }) => ({
+      resolve: (c) => ({
         ok: true,
-        response: new Response(cookies.token ?? "none"),
+        response: new Response(c.raw.cookies.token ?? "none"),
       }),
     }),
   ]);
@@ -36,8 +36,8 @@ Deno.test("handler receives parsed cookies", async () => {
 Deno.test("handler can access URL via request", async () => {
   const router = createRouter([
     route.get("/search", {
-      resolve: ({ request }) => {
-        const url = new URL(request.url);
+      resolve: (c) => {
+        const url = new URL(c.req.url);
         return {
           ok: true,
           response: new Response(url.searchParams.get("q") ?? ""),

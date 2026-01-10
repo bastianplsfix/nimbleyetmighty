@@ -1,14 +1,20 @@
 // Path parameters extracted from URL (e.g., { id: "123" })
 export type RouteParams = Record<string, string | undefined>;
 
-// Resolver info object passed to handlers (MSW-style)
-export interface ResolverInfo {
-  /** Entire request reference */
-  readonly request: Request;
+// Raw, unvalidated values extracted from the request
+export interface RawValues {
   /** Request's path parameters */
   readonly params: RouteParams;
   /** Request's cookies */
   readonly cookies: Record<string, string>;
+}
+
+// Context object passed to handlers
+export interface Context {
+  /** Native Request (source of truth) */
+  readonly req: Request;
+  /** Extracted, unvalidated values */
+  readonly raw: RawValues;
 }
 
 // Result type that makes semantic intent explicit
@@ -21,7 +27,7 @@ export type ResolveResult =
 // Function signature for route handlers
 // Handlers must return ResolveResult to make semantic intent explicit
 export type HandlerFn = (
-  info: ResolverInfo,
+  c: Context,
 ) => ResolveResult | Promise<ResolveResult>;
 
 // Guard result types
@@ -31,7 +37,7 @@ export type GuardResult =
 
 // Guard function that returns a structured result
 export type GuardFn = (
-  info: ResolverInfo,
+  c: Context,
 ) => GuardResult | Promise<GuardResult>;
 
 // Route configuration object
