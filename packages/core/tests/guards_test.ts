@@ -342,12 +342,16 @@ Deno.test("guards can be applied to individual routes without group", async () =
   assertEquals(protectedWithCookie.status, 200);
 });
 
-Deno.test("c.locals allows sharing state between guards and handlers", async () => {
-  const authGuard: GuardFn = (c) => {
-    // Guard can set data in c.locals
-    c.locals.userId = "user-123";
-    c.locals.role = "admin";
-    return { allow: true };
+Deno.test("guard can attach locals via allow result", async () => {
+  const authGuard: GuardFn = () => {
+    // Guard returns locals in the allow result
+    return {
+      allow: true,
+      locals: {
+        userId: "user-123",
+        role: "admin",
+      },
+    };
   };
 
   const handlers = [
@@ -370,4 +374,93 @@ Deno.test("c.locals allows sharing state between guards and handlers", async () 
 
   assertEquals(response.status, 200);
   assertEquals(await response.text(), "User: user-123, Role: admin");
+});
+
+Deno.test("multiple guards merge locals in order", async () => {
+  const authGuard: GuardFn = () => {
+    return {
+      allow: true,
+      locals: {
+        userId: "user-123",
+        authenticated: true,
+      },
+    };
+  };
+
+  const roleGuard: GuardFn = () => {
+    return {
+      allow: true,
+      locals: {
+        role: "admin",
+        permissions: ["read", "write"],
+      },
+    };
+  };
+
+  const handlers = [
+    route.get("/admin", {
+      resolve: (c) => {
+        const data = JSON.stringify(c.locals);
+        return {
+          ok: true,
+          response: new Response(data),
+        };
+      },
+      guards: [authGuard, roleGuard],
+    }),
+  ];
+
+  const app = setupNimble(handlers);
+  const response = await app.fetch(new Request("http://localhost/admin"));
+
+  assertEquals(response.status, 200);
+  const locals = JSON.parse(await response.text());
+  assertEquals(locals.userId, "user-123");
+  assertEquals(locals.authenticated, true);
+  assertEquals(locals.role, "admin");
+  assertEquals(locals.permissions, ["read", "write"]);
+});
+
+Deno.test("later guard locals override earlier ones", async () => {
+  const guard1: GuardFn = () => {
+    return {
+      allow: true,
+      locals: {
+        value: "first",
+        unique1: "only-in-first",
+      },
+    };
+  };
+
+  const guard2: GuardFn = () => {
+    return {
+      allow: true,
+      locals: {
+        value: "second",
+        unique2: "only-in-second",
+      },
+    };
+  };
+
+  const handlers = [
+    route.get("/test", {
+      resolve: (c) => {
+        const data = JSON.stringify(c.locals);
+        return {
+          ok: true,
+          response: new Response(data),
+        };
+      },
+      guards: [guard1, guard2],
+    }),
+  ];
+
+  const app = setupNimble(handlers);
+  const response = await app.fetch(new Request("http://localhost/test"));
+
+  assertEquals(response.status, 200);
+  const locals = JSON.parse(await response.text());
+  assertEquals(locals.value, "second"); // second guard overrides
+  assertEquals(locals.unique1, "only-in-first");
+  assertEquals(locals.unique2, "only-in-second");
 });

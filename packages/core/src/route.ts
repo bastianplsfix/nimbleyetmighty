@@ -34,7 +34,7 @@ export type HandlerFn = (
 
 // Guard result types
 export type GuardResult =
-  | { allow: true }
+  | { allow: true; locals?: Record<string, unknown> }
   | { deny: Response };
 
 // Guard function that returns a structured result

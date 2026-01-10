@@ -64,7 +64,10 @@ export function createRouter(handlers: Handler[]) {
             // Guard denied the request, return the denial response
             return guardResult.deny;
           }
-          // Guard allowed, continue to next guard
+          // Guard allowed, merge any locals it provided
+          if (guardResult.locals) {
+            context.locals = { ...context.locals, ...guardResult.locals };
+          }
         }
       }
 
