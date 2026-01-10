@@ -40,7 +40,8 @@ Nimble is built for:
    * raw inputs
    * validation results
    * guard facts
-     You decide what they mean.
+
+   You decide what they mean.
 
 4. **Errors are responses**
    Expected failures are returned explicitly.
@@ -134,17 +135,19 @@ const handler = setupNimble({
   onRequest?,
   onResponse?,
   onError?,
+  validator?
 });
 ```
 
 ### Options
 
-| Name         | Type                            | Description                    |
-| ------------ | ------------------------------- | ------------------------------ |
-| `handlers`     | `Handler[]`                     | All registered handlers        |
-| `onRequest`  | `(req) => void \| LocalsPatch`  | Runs before routing            |
-| `onResponse` | `(c, res) => Response`          | Runs before returning response |
-| `onError`    | `(err, c) => Response`          | Global error handler           |
+| Name         | Type                           | Description                    |
+| ------------ | ------------------------------ | ------------------------------ |
+| `handlers`   | `Handler[]`                    | All registered handlers        |
+| `onRequest`  | `(req) => void \| LocalsPatch` | Runs **before routing**        |
+| `onResponse` | `(c, res) => Response`         | Runs before returning response |
+| `onError`    | `(err, c) => Response`         | Global error handler           |
+| `validator`  | `NimbleValidator`              | Schema adapter (optional)      |
 
 Returns:
 
@@ -175,8 +178,11 @@ route.all(path, config): Handler
 route.on(method, path, config): Handler
 ```
 
-Each route factory returns a **Handler** descriptor:
-`{ method, path, handler, guards?, request? }`
+Each route factory returns a **Handler descriptor**:
+
+```ts
+{ method, path, handler, guards?, request? }
+```
 
 Routes use **URLPattern** for path matching.
 
@@ -352,6 +358,69 @@ Then:
 * ❌ no validated values exist
 * ✅ only `issues`, `failed`, `raw`
 
+> When a validator is configured, `params`, `query`, and `body` are automatically **type-inferred** from the schema types.
+
+---
+
+# Validator integration
+
+Nimble is schema-library agnostic.
+You plug in validation behavior via `setupNimble`.
+
+```ts
+const app = setupNimble<ZodTypeAny>({
+  validator: myValidator,
+  handlers: [...]
+});
+```
+
+### Validator contract
+
+```ts
+interface NimbleValidator<TSchema> {
+  validate<S extends TSchema>(
+    schema: S,
+    input: unknown,
+    part: "params" | "query" | "body"
+  ):
+    | { ok: true; value: InferSchema<S> }
+    | { ok: false; issues: ValidationIssue[]; raw?: unknown }
+}
+```
+
+### Zod adapter (copy/paste)
+
+```ts
+import type { ZodTypeAny } from "zod";
+
+export const zodValidator = {
+  validate(schema, input, part) {
+    const res = schema.safeParse(input);
+
+    if (res.success) {
+      return { ok: true, value: res.data };
+    }
+
+    return {
+      ok: false,
+      raw: res.error,
+      issues: res.error.issues.map((i) => ({
+        part,
+        path: i.path.map(String),
+        message: i.message,
+      })),
+    };
+  },
+};
+```
+
+### Why this design
+
+* Nimble never depends on any schema library
+* Inference comes from `safeParse()` typing
+* Runtime stays tiny
+* Users control error formatting
+
 ---
 
 # Guards
@@ -373,20 +442,6 @@ type GuardFn = (c: Context) =>
 * First `deny` short-circuits
 * Allows may attach locals
 
-### Example
-
-```ts
-const requireAuth: GuardFn = async (c) => {
-  const token = c.req.headers.get("authorization");
-  if (!token) {
-    return { deny: new Response("Unauthorized", { status: 401 }) };
-  }
-
-  const user = await verify(token);
-  return { allow: true, locals: { user } };
-};
-```
-
 ---
 
 # Locals (`c.locals`)
@@ -406,30 +461,17 @@ Nimble creates a **new context** with merged locals at each step.
 Nothing mutates. Data only flows forward. Every step is pure.
 
 ```ts
-// Step 1: onRequest adds requestId
-context = { ...context, locals: { ...context.locals, { requestId } } }
-// → { requestId: "abc" }
+// Step 1
+{ requestId }
 
-// Step 2: Guard adds user
-context = { ...context, locals: { ...context.locals, { user } } }
-// → { requestId: "abc", user: {...} }
+// Step 2
+{ requestId, user }
 
-// Step 3: Another guard adds tenant
-context = { ...context, locals: { ...context.locals, { tenant } } }
-// → { requestId: "abc", user: {...}, tenant: {...} }
+// Step 3
+{ requestId, user, tenant }
 ```
 
-Later patches override earlier values:
-
-```ts
-// onRequest sets role
-{ role: "user" }
-
-// Guard overrides role
-{ role: "admin" }
-
-// Final locals.role = "admin"
-```
+Later patches override earlier values.
 
 Good for:
 
@@ -468,41 +510,11 @@ final.guards = [
 ]
 ```
 
-No runtime behavior.
-
-### Example
-
-```ts
-const apiRoutes = group({
-  guards: [requireAuth],
-  handlers: [
-    route.get("/me", { resolve: ... }),
-    route.post("/posts", { resolve: ... }),
-  ],
-});
-```
-
-Nested:
-
-```ts
-group({
-  guards: [requireAuth],
-  handlers: [
-    ...group({
-      guards: [requireAdmin],
-      handlers: [
-        route.get("/admin", ...),
-      ],
-    }),
-  ],
-});
-```
-
 ---
 
 # onRequest hook
 
-Runs **before routing**, receives only `Request`.
+Runs **before routing**, receives the raw Fetch `Request`.
 
 Rules:
 
@@ -517,13 +529,7 @@ onRequest: (req) => ({
 })
 ```
 
-Returns a locals patch that will be merged into context after routing.
-
-Use for:
-
-* request IDs
-* timing
-* logging context
+Returns a locals patch that will be merged into context **before routing**.
 
 ---
 
@@ -556,13 +562,6 @@ onError(error, c) {
 }
 ```
 
-Expected failures:
-
-* validation
-* auth
-* domain rules
-  → **must be returned explicitly**
-
 ---
 
 # Error model
@@ -571,60 +570,6 @@ Expected failures:
 | ---------- | --------------- |
 | Expected   | Return Response |
 | Unexpected | Throw → onError |
-
-No exception-based control flow.
-
----
-
-# Guard flow diagram
-
-```
-Guard #1 → allow + locals
-        ↓
-Guard #2 → allow
-        ↓
-Guard #3 → deny → Response returned
-```
-
----
-
-# Validation flow
-
-```
-Schemas exist?
-     ↓
-safeParse each
-     ↓
-c.input computed
-     ↓
-Handler decides
-```
-
----
-
-# Full lifecycle diagram
-
-```
-Request
-   ↓
-onRequest
-   ↓
-Route match
-   ↓
-Extract raw
-   ↓
-Parse body
-   ↓
-Validate
-   ↓
-Guards
-   ↓
-Handler
-   ↓
-onResponse
-   ↓
-Response
-```
 
 ---
 
@@ -640,16 +585,6 @@ Response
 * 409 conflicts
 * 200/201 success
 * all HTTP semantics
-
----
-
-# Why Nimble
-
-* Teaches real HTTP
-* Makes control flow visible
-* Encourages good architecture
-* Edge-native
-* Minimal surface area
 
 ---
 
