@@ -346,13 +346,28 @@ const app = setupNimble({
     // ─────────────────────────────────────────────────────────────
 
     route.get("/users/:userId/posts/:postId", {
-      resolve: ({ params }) => ({
-        ok: true,
-        response: Response.json({
-          userId: params.userId,
-          postId: params.postId,
+      input: {
+        params: z.object({
+          userId: z.string().uuid(),
+          postId: z.string().uuid(),
         }),
-      }),
+      },
+      resolve: ({ params, input }) => {
+        if (!input.ok) {
+          return {
+            ok: false,
+            error: new Response("Invalid input", { status: 400 }),
+          };
+        }
+
+        return {
+          ok: true,
+          response: Response.json({
+            userId: input.params.postId,
+            postId: params.postId,
+          }),
+        };
+      },
     }),
 
     // ─────────────────────────────────────────────────────────────
