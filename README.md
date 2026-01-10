@@ -389,11 +389,44 @@ const requireAuth: GuardFn = async (c) => {
 # Locals (`c.locals`)
 
 * Request-scoped facts
-* Immutable merge
+* **Immutable accumulation**
 * Provided by:
 
   * `onRequest`
   * guards
+
+## How immutable accumulation works
+
+Each guard or hook returns a **locals patch**.
+Nimble creates a **new context** with merged locals at each step.
+
+Nothing mutates. Data only flows forward. Every step is pure.
+
+```ts
+// Step 1: onRequest adds requestId
+context = { ...context, locals: { ...context.locals, { requestId } } }
+// → { requestId: "abc" }
+
+// Step 2: Guard adds user
+context = { ...context, locals: { ...context.locals, { user } } }
+// → { requestId: "abc", user: {...} }
+
+// Step 3: Another guard adds tenant
+context = { ...context, locals: { ...context.locals, { tenant } } }
+// → { requestId: "abc", user: {...}, tenant: {...} }
+```
+
+Later patches override earlier values:
+
+```ts
+// onRequest sets role
+{ role: "user" }
+
+// Guard overrides role
+{ role: "admin" }
+
+// Final locals.role = "admin"
+```
 
 Good for:
 
@@ -466,7 +499,7 @@ group({
 
 # onRequest hook
 
-Runs **before routing**.
+Runs **after route matching**, receives full `Context`.
 
 Rules:
 
@@ -475,13 +508,13 @@ Rules:
 * May only return locals patch
 
 ```ts
-onRequest: () => ({
+onRequest: (c) => ({
   requestId: crypto.randomUUID(),
   startedAt: Date.now(),
 })
 ```
 
-Merged immutably into `c.locals`.
+Returns a locals patch that creates a **new context** with accumulated locals.
 
 Use for:
 

@@ -101,7 +101,7 @@ export function createRouter(handlers: Handler[]): Router {
       );
 
       // Create initial context with empty locals
-      const context: Context = {
+      let context: Context = {
         req,
         raw: {
           params: matched.params,
@@ -114,14 +114,19 @@ export function createRouter(handlers: Handler[]): Router {
       };
 
       // Run onRequest hook to get initial locals (receives full context)
+      // Creates new context with merged locals
       if (onRequest) {
         const localsPatch = await onRequest(context);
         if (localsPatch) {
-          context.locals = { ...context.locals, ...localsPatch };
+          context = {
+            ...context,
+            locals: { ...context.locals, ...localsPatch },
+          };
         }
       }
 
       // Execute guards in order
+      // Each guard that adds locals creates a new context
       if (matched.handler.guards && matched.handler.guards.length > 0) {
         for (const guard of matched.handler.guards) {
           try {
@@ -134,8 +139,12 @@ export function createRouter(handlers: Handler[]): Router {
               };
             }
             // Guard allowed, merge any locals it provided
+            // Create new context with accumulated locals
             if (guardResult.locals) {
-              context.locals = { ...context.locals, ...guardResult.locals };
+              context = {
+                ...context,
+                locals: { ...context.locals, ...guardResult.locals },
+              };
             }
           } catch (error) {
             // Attach context to error so onError can access it
