@@ -5,8 +5,6 @@ export type RouteParams = Record<string, string | undefined>;
 export interface ResolverInfo {
   /** Entire request reference */
   readonly request: Request;
-  /** Unique request identifier (from headers or generated) */
-  readonly requestId: string;
   /** Request's path parameters */
   readonly params: RouteParams;
   /** Request's cookies */

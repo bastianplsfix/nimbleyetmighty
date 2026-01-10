@@ -1,6 +1,5 @@
 import type { Handler, RouteParams } from "./route.ts";
 import { parseCookies } from "./cookies.ts";
-import { resolveRequestId } from "./internal/request_id.ts";
 
 interface CompiledRoute {
   handler: Handler;
@@ -46,12 +45,10 @@ export function createRouter(handlers: Handler[]) {
         return new Response("Not Found", { status: 404 });
       }
 
-      const requestId = resolveRequestId(req.headers);
       const cookies = parseCookies(req.headers.get("cookie"));
 
       const resolverInfo = {
         request: req,
-        requestId,
         params: matched.params,
         cookies,
       };

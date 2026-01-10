@@ -1,7 +1,3 @@
-Here’s the **updated framework description** with the new `group()` model baked in.
-
----
-
 # Nimble Framework – Final Model
 
 Nimble is a minimal web framework built directly on the Fetch API (`Request` / `Response`).

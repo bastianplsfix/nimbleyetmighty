@@ -7,8 +7,6 @@ import { createRouter } from "./router.ts";
 export interface ErrorContext {
   /** The original request that caused the error */
   readonly request: Request;
-  /** Unique request identifier */
-  readonly requestId: string;
   /** The error that was thrown */
   readonly error: unknown;
 }
@@ -27,14 +25,13 @@ export type OnRequestHandler = (
 export type OnResponseHandler = (
   request: Request,
   response: Response,
-  requestId: string,
 ) => Response | Promise<Response>;
 
 // Default onError implementation: logs the error and returns a sanitized 500 response
 const defaultOnError: OnErrorHandler = (ctx) => {
   // Log the unexpected error
   console.error(
-    `[${ctx.requestId}] Unexpected error during request handling:`,
+    "Unexpected error during request handling:",
     ctx.error,
   );
 
@@ -85,23 +82,15 @@ export function setupNimble(
 
         // Run onResponse hook after handler execution
         if (onResponse) {
-          const requestId = req.headers.get("x-request-id") ??
-            req.headers.get("x-correlation-id") ??
-            crypto.randomUUID();
-          response = await onResponse(req, response, requestId);
+          response = await onResponse(req, response);
         }
 
         return response;
       } catch (error) {
         // Exception caught = unexpected failure (bug, crash, infrastructure problem)
         // Delegate to centralized onError handler
-        const requestId = req.headers.get("x-request-id") ??
-          req.headers.get("x-correlation-id") ??
-          crypto.randomUUID();
-
         return await onError({
           request: req,
-          requestId,
           error,
         });
       }
