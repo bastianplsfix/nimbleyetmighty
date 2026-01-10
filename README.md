@@ -1,85 +1,132 @@
-## Nimble framework layout
+# Nimble Framework – Final Model
 
-Nimble is a minimal web framework built on the standard `Request` / `Response` model. It’s designed around one rule:
+Nimble is a minimal web framework built directly on the Fetch API (`Request` / `Response`).
 
-**The framework describes facts. The handler decides the HTTP response.**
+Its core rule:
 
-There are no implicit error responses. If a request ends early, it’s because a guard denied it or a handler returned a response.
+> **The framework describes facts.
+> The handler decides the HTTP response.**
 
----
-
-## Core pipeline
-
-For each incoming request, Nimble executes this pipeline (single phase):
-
-1. **Route match**
-2. **Extract raw inputs**
-3. **Validate (manual)**
-4. **Run guards (allow / deny)**
-5. **Run handler**
-6. **Return the final `Response`**
-7. **Catch unexpected throws → 500 via `onError`**
+Nimble never returns “helpful” responses for you.
+If a request ends, it’s because **you explicitly returned a `Response`**
+(or a guard denied it).
 
 ---
 
-## 1) Route matching
+# Request lifecycle
 
-Nimble matches requests using `URLPattern`.
+For every incoming request, Nimble runs this **single-phase pipeline**:
 
-* Routes are registered as `{ method, pattern, ... }`.
-* A request is matched by method + `URLPattern` execution.
-* If no route matches: return `404` (framework-owned, because no handler exists to decide).
-
-On match, Nimble produces:
-
-* the matched route definition
-* URLPattern match result (including string params)
-
----
-
-## 2) Context creation
-
-Nimble creates a per-request context object `c`. This context is immutable by default (you can still store `locals` if you want, but nothing in the core model requires mutation).
-
-At minimum it includes:
-
-* `c.req` — the original Fetch `Request`
-* `c.url` — a `URL` instance for `req.url`
-* `c.method` — request method
-* `c.headers` — request headers
-* `c.raw` — framework-extracted but *unvalidated* values
-
-### Raw inputs (`c.raw`)
-
-Raw values are convenience extractions from the request. They are not trusted.
-
-* `c.raw.params` — `{ [name: string]: string }` from URLPattern
-* `c.raw.query` — object built from `URLSearchParams`:
-
-  * single key → string
-  * repeated key → string[]
-* `c.raw.body` — only present if the framework parsed the body
+```
+Request
+→ Route match
+→ Extract raw inputs
+→ Parse body (if needed)
+→ Validate (manual)
+→ Run guards
+→ Run handler
+→ Return Response
+→ Catch unexpected throws → 500
+```
 
 ---
 
-## 3) Body parsing rules (single-read)
+# 1) Routing
 
-The request body is a stream and is read at most once.
+* Routes are matched using `URLPattern`
+* Match is done by:
 
-* If the matched route defines `request.body`, Nimble reads the body once and parses JSON.
+  * HTTP method
+  * URL pattern
 
-  * On invalid JSON, Nimble does **not** throw. It records a validation failure instead.
-* If the route has no `request.body`, Nimble does not touch the body.
+If no route matches:
 
-  * The handler may read it manually.
-
-If Nimble parses the body, the parsed value is cached to `c.raw.body`.
+* Nimble returns `404`
+* (This is framework-owned because no handler exists)
 
 ---
 
-## 4) Built-in validation (always manual)
+# 2) Context (`c`)
 
-Routes may define request schemas:
+Each request gets a **context object**:
+
+```ts
+c.req // native Fetch Request (source of truth)
+c.raw // extracted but unvalidated values
+c.input // validation result (safe only if ok)
+```
+
+Nimble does **not** duplicate HTTP primitives:
+
+* No `c.headers`
+* No `c.method`
+* No `c.url`
+
+Use:
+
+```ts
+c.req.headers
+c.req.method
+new URL(c.req.url)
+```
+
+---
+
+# 3) Raw inputs (`c.raw`)
+
+`raw` is **framework-extracted convenience data**.
+It is **not trusted**.
+
+```ts
+c.raw = {
+  params, // from URLPattern (strings)
+  query,  // from URLSearchParams → object
+  body?,  // parsed JSON (only if framework parsed)
+}
+```
+
+### Query parsing rules
+
+`?tag=a&tag=b&limit=10` becomes:
+
+```ts
+{
+  tag: ["a", "b"],
+  limit: "10"
+}
+```
+
+No coercion is done automatically.
+
+---
+
+# 4) Body handling (single-read rule)
+
+> **The request body is read at most once.**
+
+Rules:
+
+* If route defines `request.body`
+
+  * Nimble parses JSON once
+  * Cached to `c.raw.body`
+  * User must NOT call `req.json()`
+
+* If no `request.body`
+
+  * Nimble does not touch the body
+  * User may read manually
+
+Invalid JSON:
+
+* Does NOT throw
+* Becomes a validation failure
+
+---
+
+# 5) Built-in validation (always manual)
+
+Routes may define schemas:
 
 ```ts
 request: {
@@ -89,137 +136,215 @@ request: {
 }
 ```
 
-Schemas are duck-typed via `safeParse(...)` (Zod-first, not Zod-locked).
-
-Nimble validates each provided part against its schema and produces:
-
-* `c.input` — a discriminated union describing the validation result
-
-### `c.input` shape
-
-* If validation succeeds for all provided schemas:
+Schemas are duck-typed via:
 
 ```ts
-c.input = {
+schema.safeParse(input)
+```
+
+Validation **never returns a response**
+Validation **never throws**
+
+Instead Nimble computes:
+
+```ts
+c.input
+```
+
+### Shape
+
+Success:
+
+```ts
+{
   ok: true,
-  params, query, body // typed validated values
+  params,
+  query,
+  body
 }
 ```
 
-* If any provided schema fails:
+Failure:
 
 ```ts
-c.input = {
+{
   ok: false,
-  failed: ["params" | "query" | "body", ...],
-  issues: [{ part, path, message }, ...],
-  raw: { params?, query?, body? } // raw schema errors / debugging info
+  failed: ["params" | "query" | "body"],
+  issues: [
+    { part, path, message }
+  ],
+  raw: {
+    params?,
+    query?,
+    body?
+  }
 }
 ```
 
-### Validation access rule
+### Access rule
 
-When `c.input.ok === false`:
+When:
 
-* Nimble exposes **no validated values**
-* the handler must branch and decide the response
+```ts
+c.input.ok === false
+```
 
-This prevents accidental use of unvalidated data and keeps the “validated gate” explicit.
+Then:
+
+* ❌ No validated values exist
+* ✅ Only `issues`, `failed`, `raw`
+
+This is enforced by typing and runtime.
 
 ---
 
-## 5) Guards (allow / deny)
+# 6) Guards (allow / deny)
 
-Routes can define ordered guards:
-
-```ts
-guards: GuardFn[]
-```
-
-A guard is a pure request gate:
-
-* It receives the same context `c` (including `c.raw` and `c.input`)
-* It returns either:
+Guards are **pure request gates**:
 
 ```ts
-{ allow: true }
+type GuardResult =
+  | { allow: true }
+  | { deny: Response }
 ```
-
-or
 
 ```ts
-{ deny: Response }
+type GuardFn = (c) => GuardResult | Promise<GuardResult>
 ```
 
-### Guard behavior
+Execution:
 
-* Guards run in order after validation.
-* If any guard returns `{ deny: Response }`, the pipeline stops immediately and that `Response` is returned.
-* If all guards allow, the handler runs.
+* Guards run **after validation**
+* Ordered
+* First deny short-circuits
 
-Guards may deny regardless of validation state. (For example: auth can deny even when input is invalid.)
+Rules:
+
+* Guards may deny regardless of validation state
+* Guards return concrete HTTP responses
+* Guards never mutate request state
+
+Example:
+
+```ts
+const requireAuth = (c) => {
+  if (!c.req.headers.get("authorization")) {
+    return { deny: Response.json({ error: "Unauthorized" }, { status: 401 }) }
+  }
+  return { allow: true }
+}
+```
 
 ---
 
-## 6) Handler (resolver)
+# 7) Handler (resolver)
 
-Every route has a resolver:
+Handlers **always return a Response**:
 
 ```ts
 resolve: (c) => Response | Promise<Response>
 ```
 
-The resolver always returns a `Response`. This is Option A: errors are handled explicitly as responses.
-
-Common pattern:
+Typical pattern:
 
 ```ts
-if (!c.input.ok) return Response.json(..., { status: 400 });
+if (!c.input.ok) {
+  return Response.json(
+    { error: { message: "Bad input", issues: c.input.issues } },
+    { status: 400 }
+  )
+}
+
+// Safe here
+const { params, body } = c.input
 ```
 
-If the resolver returns, that response is final.
+There are:
+
+* no helper throws
+* no implicit 400s
+* no magic
 
 ---
 
-## 7) Error boundary (`onError`)
+# 8) Error boundary
 
-Nimble treats thrown exceptions as **unexpected failures**.
+Thrown errors mean:
 
-* Anything thrown during parsing, validation, guards, or handler execution is caught by a single boundary.
-* The boundary calls `onError(error, c)` if provided.
-* If no custom handler exists, Nimble returns a generic `500 Internal Server Error`.
+> **Something unexpected happened**
 
-This keeps “expected failures” (validation/auth/not-found) explicit and “unexpected failures” centralized.
+* Bugs
+* Crashes
+* Library failures
 
----
+Nimble:
 
-## 8) What the framework decides vs what users decide
+* catches all throws
+* calls `onError(error, c)` if provided
+* otherwise returns `500`
 
-### Framework-owned outcomes
+Expected failures:
 
-* **404 no route matched** (no handler exists)
-* **500 unexpected throw** (unless customized by `onError`)
-
-### User-owned outcomes
-
-* Validation failures (always manual)
-* Auth failures (guards deny)
-* Business rule failures
-* Conflicts, not founds, etc. inside the domain
-* All normal success responses
+* validation
+* auth
+* business rules
+  → are **explicit Responses**
 
 ---
 
-## The mental model
+# 9) Ownership of outcomes
 
-Nimble has exactly one “commit point”:
+### Framework decides
 
-* Guards commit by returning a deny `Response`
-* Handlers commit by returning a `Response`
+* No route matched → 404
+* Unhandled exception → 500
 
-Everything else is just producing facts:
+### User decides
 
-* `c.raw` = extracted but unsafe
-* `c.input` = validated gate (safe only when ok)
+* Validation errors
+* Auth failures
+* Business logic
+* Success responses
+* All HTTP semantics
 
-That’s the whole framework layout: explicit, deterministic, and easy to reason about.
+---
+
+# 10) Final mental model
+
+```
+Request
+   ↓
+Nimble extracts facts
+   ↓
+c.raw (unsafe)
+c.input (validated gate)
+   ↓
+Guards decide allow / deny
+   ↓
+Handler commits HTTP reality
+```
+
+---
+
+# Philosophy
+
+* No hidden control flow
+* No magic responses
+* No helper traps
+* One decision boundary
+* Web standards first
+
+> **Nimble never decides what HTTP means.
+> It only describes what happened.
+> You commit reality.**
+
+---
+
+This model is:
+
+* teachable
+* deterministic
+* debuggable
+* philosophically consistent
+
+It’s honestly very strong 👌
