@@ -1,5 +1,4 @@
 import type { Context, Handler, RouteParams } from "./route.ts";
-import { parseCookies } from "./cookies.ts";
 import {
   parseBody,
   parseQuery,
@@ -71,7 +70,7 @@ export function createRouter(handlers: Handler[]): Router {
         // Create minimal context for 404 response
         const notFoundContext: Context = {
           req,
-          raw: { params: {}, query: {}, cookies: {}, body: undefined },
+          raw: { params: {}, query: {}, body: undefined },
           input: { ok: true, params: {}, query: {}, body: {} },
           locals: {},
         };
@@ -82,7 +81,6 @@ export function createRouter(handlers: Handler[]): Router {
       }
 
       // Extract raw values
-      const cookies = parseCookies(req.headers.get("cookie"));
       const query = parseQuery(req.url);
 
       // Parse body if request has a body
@@ -106,7 +104,6 @@ export function createRouter(handlers: Handler[]): Router {
         raw: {
           params: matched.params,
           query,
-          cookies,
           body,
         },
         input,

@@ -114,7 +114,7 @@ Deno.test("group handles mixed single handlers and arrays", () => {
 
 Deno.test("group applies guards to all handlers", () => {
   const authGuard: GuardFn = (c) => {
-    if (!c.raw.cookies["session"]) {
+    if (!c.req.headers.get("authorization")) {
       return { deny: new Response("Unauthorized", { status: 401 }) };
     }
     return { allow: true };

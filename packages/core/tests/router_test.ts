@@ -17,17 +17,20 @@ Deno.test("createRouter.match extracts path params", () => {
   assertEquals(result?.params.id, "123");
 });
 
-Deno.test("handler receives parsed cookies", async () => {
+Deno.test("handler can access request headers", async () => {
   const router = createRouter([
     route.get("/auth", {
-      resolve: (c) => new Response(c.raw.cookies.token ?? "none"),
+      resolve: (c) => {
+        const auth = c.req.headers.get("authorization");
+        return new Response(auth ?? "none");
+      },
     }),
   ]);
   const req = new Request("http://localhost/auth", {
-    headers: { cookie: "token=abc123; other=value" },
+    headers: { authorization: "Bearer abc123" },
   });
   const result = await router.handle(req);
-  assertEquals(await result.response.text(), "abc123");
+  assertEquals(await result.response.text(), "Bearer abc123");
 });
 
 Deno.test("handler can access URL via request", async () => {

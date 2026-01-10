@@ -86,7 +86,7 @@ export function setupNimble(
         // If we have context from the error, use it; otherwise create a minimal one
         const context = (error as any).context || {
           req,
-          raw: { params: {}, query: {}, cookies: {}, body: undefined },
+          raw: { params: {}, query: {}, body: undefined },
           input: { ok: true, params: {}, query: {}, body: {} },
           locals: {},
         };

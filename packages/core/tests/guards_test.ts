@@ -60,9 +60,10 @@ Deno.test("guard rejects request when returning Response", async () => {
   assertEquals(await response.text(), "Unauthorized");
 });
 
-Deno.test("guard has access to cookies", async () => {
+Deno.test("guard has access to request headers", async () => {
   const authGuard: GuardFn = (c) => {
-    if (!c.raw.cookies["session"]) {
+    const authHeader = c.req.headers.get("authorization");
+    if (!authHeader) {
       return { deny: new Response("Unauthorized", { status: 401 }) };
     }
     return { allow: true };
@@ -79,14 +80,14 @@ Deno.test("guard has access to cookies", async () => {
 
   const app = setupNimble(handlers);
 
-  // Without cookie
+  // Without auth header
   const response1 = await app.fetch(new Request("http://localhost/protected"));
   assertEquals(response1.status, 401);
 
-  // With cookie
+  // With auth header
   const response2 = await app.fetch(
     new Request("http://localhost/protected", {
-      headers: { Cookie: "session=abc123" },
+      headers: { authorization: "Bearer token123" },
     }),
   );
   assertEquals(response2.status, 200);
@@ -274,7 +275,7 @@ Deno.test("async guards work correctly", async () => {
     // Simulate async validation (e.g., database check)
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    if (!c.raw.cookies["token"]) {
+    if (!c.req.headers.get("authorization")) {
       return { deny: new Response("Unauthorized", { status: 401 }) };
     }
     return { allow: true };
@@ -296,7 +297,7 @@ Deno.test("async guards work correctly", async () => {
 
   const response2 = await app.fetch(
     new Request("http://localhost/protected", {
-      headers: { Cookie: "token=valid" },
+      headers: { authorization: "Bearer token123" },
     }),
   );
   assertEquals(response2.status, 200);
@@ -304,7 +305,7 @@ Deno.test("async guards work correctly", async () => {
 
 Deno.test("guards can be applied to individual routes without group", async () => {
   const authGuard: GuardFn = (c) => {
-    if (!c.raw.cookies["session"]) {
+    if (!c.req.headers.get("authorization")) {
       return { deny: new Response("Unauthorized", { status: 401 }) };
     }
     return { allow: true };
@@ -336,7 +337,7 @@ Deno.test("guards can be applied to individual routes without group", async () =
 
   const protectedWithCookie = await app.fetch(
     new Request("http://localhost/protected", {
-      headers: { Cookie: "session=abc" },
+      headers: { authorization: "Bearer token123" },
     }),
   );
   assertEquals(protectedWithCookie.status, 200);

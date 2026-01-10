@@ -21,10 +21,3 @@ export {
   type OnResponseHandler,
   setupNimble,
 } from "./src/runtime.ts";
-
-// Cookie utilities
-export {
-  type CookieSerializeOptions,
-  parseCookies,
-  serializeCookie,
-} from "./src/cookies.ts";

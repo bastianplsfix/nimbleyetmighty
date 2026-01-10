@@ -58,8 +58,6 @@ export interface RawValues {
   readonly params: RouteParams;
   /** Request's query parameters */
   readonly query: Record<string, string | string[]>;
-  /** Request's cookies */
-  readonly cookies: Record<string, string>;
   /** Parsed JSON body (only if body exists and is valid JSON) */
   readonly body?: unknown;
 }
